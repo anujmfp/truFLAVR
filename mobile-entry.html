@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Daily Sales Submission Portal</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --bg-primary: #0b0f19;
+            --bg-secondary: #111827;
+            --card-bg: rgba(17, 24, 39, 0.7);
+            --card-border: rgba(255, 255, 255, 0.05);
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --text-muted: #6b7280;
+            --accent-indigo: #6366f1;
+            --accent-emerald: #10b981;
+            --accent-rose: #f43f5e;
+            --input-bg: rgba(31, 41, 55, 0.5);
+            --input-border: rgba(255, 255, 255, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 1rem;
+            overflow-x: hidden;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+            padding-bottom: 2rem;
+        }
+
+        header {
+            text-align: center;
+            margin-top: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logo-badge {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            color: var(--accent-indigo);
+            padding: 0.35rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        h1 {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        p.subtitle {
+            font-size: 0.825rem;
+            color: var(--text-secondary);
+        }
+
+        /* Glassmorphic Form Card */
+        .form-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .input-ctrl {
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 8px;
+            padding: 0.65rem 0.75rem;
+            color: var(--text-primary);
+            font-size: 0.925rem;
+            outline: none;
+            width: 100%;
+            transition: all 0.2s ease;
+        }
+
+        .input-ctrl:focus {
+            border-color: var(--accent-indigo);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+
+        select.input-ctrl {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1rem;
+            padding-right: 2rem;
+        }
+
+        .qty-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+        }
+
+        .qty-input-wrapper {
+            position: relative;
+        }
+
+        .qty-label-sub {
+            position: absolute;
+            right: 0.65rem;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            pointer-events: none;
+        }
+
+        .qty-input-ctrl {
+            padding-right: 2.2rem;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        /* Real-time Calculator Section */
+        .calculator-banner {
+            background: rgba(99, 102, 241, 0.05);
+            border: 1px dashed rgba(99, 102, 241, 0.2);
+            border-radius: 8px;
+            padding: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+        }
+
+        .calc-title {
+            color: var(--text-secondary);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .calc-value {
+            color: var(--accent-indigo);
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        /* Submit Button */
+        .btn-submit {
+            background: var(--accent-indigo);
+            border: none;
+            color: white;
+            font-size: 0.95rem;
+            font-weight: 600;
+            padding: 0.85rem;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+            width: 100%;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+        }
+
+        .btn-submit:active {
+            transform: scale(0.98);
+        }
+
+        .btn-submit:disabled {
+            background: var(--text-muted);
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        /* Notifications & Pending Queue Banner */
+        .alert-banner {
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            font-size: 0.825rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            animation: slideIn 0.3s ease;
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            color: var(--accent-emerald);
+        }
+
+        .alert-error {
+            background: rgba(244, 63, 94, 0.1);
+            border: 1px solid rgba(244, 63, 94, 0.2);
+            color: var(--accent-rose);
+        }
+
+        .alert-info {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            color: var(--accent-indigo);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-10px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        /* Config Card Overlay for first-time use */
+        .config-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(11, 15, 25, 0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1.5rem;
+            z-index: 1000;
+        }
+
+        .config-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .config-icon {
+            font-size: 2.5rem;
+            color: var(--accent-rose);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        
+        <!-- Header -->
+        <header>
+            <div class="logo-badge">
+                <i data-lucide="sparkles" style="width: 12px; height: 12px;"></i>
+                TRU FLAVR SALES
+            </div>
+            <h1>Daily Sales Report</h1>
+            <p class="subtitle">End of day report submission portal</p>
+        </header>
+
+        <!-- Connection / Queue Status Bar -->
+        <div id="pending-sync-banner" class="alert-banner alert-info hidden">
+            <i data-lucide="cloud-off"></i>
+            <div>
+                You have <strong id="pending-count">0</strong> report(s) saved offline.
+                <button id="btn-sync-now" style="background: none; border: none; color: white; font-weight: 700; text-decoration: underline; margin-left: 0.5rem; cursor: pointer;">Sync Now</button>
+            </div>
+        </div>
+
+        <!-- Success/Error Banners -->
+        <div id="status-banner" class="alert-banner hidden"></div>
+
+        <!-- Entry Form -->
+        <form class="form-card" id="dsr-form">
+            
+            <!-- Date -->
+            <div class="form-group">
+                <label for="dsr-date"><i data-lucide="calendar"></i> Date</label>
+                <input type="date" id="dsr-date" class="input-ctrl" required>
+            </div>
+
+            <!-- Sales Rep Name -->
+            <div class="form-group">
+                <label for="dsr-rep"><i data-lucide="user"></i> Sales Representative</label>
+                <select id="dsr-rep" class="input-ctrl" required>
+                    <option value="" disabled selected>Select Your Name</option>
+                    <option value="Kamini (Surat)">Kamini (Surat)</option>
+                    <option value="Krish (Baroda)">Krish (Baroda)</option>
+                    <option value="Jignesh Vadodariya (Rajkot)">Jignesh (Rajkot)</option>
+                    <option value="Bipin (AHM)">Bipin (AHM)</option>
+                    <option value="Prakash (Vapi)">Prakash (Vapi)</option>
+                    <option value="Krunal (Vapi)">Krunal (Vapi)</option>
+                </select>
+            </div>
+
+            <!-- Beat / Route -->
+            <div class="form-group">
+                <label for="dsr-beat"><i data-lucide="map-pin"></i> Beat / Route</label>
+                <input type="text" id="dsr-beat" class="input-ctrl" placeholder="e.g. Adajan Road, Vaniyavadi" required>
+            </div>
+
+            <!-- Distributor Name -->
+            <div class="form-group">
+                <label for="dsr-distributor"><i data-lucide="building-2"></i> Distributor Name</label>
+                <input type="text" id="dsr-distributor" class="input-ctrl" placeholder="e.g. Egal Marketing, Pooja Trading" required>
+            </div>
+
+            <!-- Quantities sold (Bottles, Pouches, Loose) -->
+            <div class="form-group">
+                <label><i data-lucide="package"></i> Quantities Sold</label>
+                <div class="qty-row">
+                    <div class="qty-input-wrapper">
+                        <input type="number" id="qty-bottles" class="input-ctrl qty-input-ctrl" min="0" placeholder="0" value="0">
+                        <span class="qty-label-sub">Btl</span>
+                    </div>
+                    <div class="qty-input-wrapper">
+                        <input type="number" id="qty-pouches" class="input-ctrl qty-input-ctrl" min="0" placeholder="0" value="0">
+                        <span class="qty-label-sub">Pch</span>
+                    </div>
+                    <div class="qty-input-wrapper">
+                        <input type="number" id="qty-loose" class="input-ctrl qty-input-ctrl" min="0" placeholder="0" value="0">
+                        <span class="qty-label-sub">Lse</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Real-Time Calculator Banner -->
+            <div class="calculator-banner">
+                <span class="calc-title"><i data-lucide="calculator" style="width: 14px; height: 14px;"></i> Estimated Value:</span>
+                <span class="calc-value" id="calc-estimate-label">₹0.00</span>
+            </div>
+
+            <!-- Reported Value (Auto-fills with calculation, but editable) -->
+            <div class="form-group">
+                <label for="dsr-value"><i data-lucide="indian-rupee"></i> Total Invoice Value (₹)</label>
+                <input type="number" id="dsr-value" class="input-ctrl" min="0" step="0.01" placeholder="₹0.00" required>
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="btn-submit" id="btn-submit-dsr">
+                <i data-lucide="send" id="btn-icon"></i>
+                <span id="btn-text">Submit Report</span>
+            </button>
+
+        </form>
+
+    </div>
+
+    <!-- Configuration Missing Modal Overlay -->
+    <div id="config-missing-overlay" class="config-overlay hidden">
+        <div class="config-card">
+            <i data-lucide="alert-circle" class="config-icon" style="width: 48px; height: 48px; margin: 0 auto;"></i>
+            <h2>Configuration Required</h2>
+            <p style="color: var(--text-secondary); font-size: 0.875rem;">
+                This mobile portal has not been linked to your manager's database yet.
+            </p>
+            <p style="color: var(--text-muted); font-size: 0.8rem; line-height: 1.4;">
+                Please ask your Sales Manager to open the dashboard's <strong>Settings tab</strong> and scan the <strong>Rep Setup QR Code</strong> to activate your phone portal.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Setup Pricing rates (Bottle: 70, Pouch: 8.3465, Loose: 400)
+        const RATES = {
+            bottles: 70.00,
+            pouches: 8.3465,
+            loose: 400.00
+        };
+
+        // State Manager
+        const state = {
+            config: {
+                url: '',
+                key: ''
+            },
+            pendingQueue: []
+        };
+
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // 1. Check Config from URL or LocalStorage
+        function checkConfiguration() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const queryUrl = urlParams.get('url');
+            const queryKey = urlParams.get('key');
+
+            if (queryUrl && queryKey) {
+                // Save config to LocalStorage
+                localStorage.setItem('truflavr_supabase_url', queryUrl);
+                localStorage.setItem('truflavr_supabase_key', queryKey);
+                state.config.url = queryUrl;
+                state.config.key = queryKey;
+                
+                // Clean URL query parameters
+                window.history.replaceState({}, document.title, window.location.pathname);
+            } else {
+                state.config.url = localStorage.getItem('truflavr_supabase_url') || '';
+                state.config.key = localStorage.getItem('truflavr_supabase_key') || '';
+            }
+
+            if (!state.config.url || !state.config.key) {
+                document.getElementById('config-missing-overlay').classList.remove('hidden');
+                document.getElementById('dsr-form').style.pointerEvents = 'none';
+                document.getElementById('dsr-form').style.opacity = '0.5';
+                return false;
+            }
+            return true;
+        }
+
+        // 2. Setup Default Date (Today)
+        function initDate() {
+            const d = new Date();
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            document.getElementById('dsr-date').value = `${y}-${m}-${day}`;
+        }
+
+        // 3. Setup Heuristics Calculators
+        const btlInput = document.getElementById('qty-bottles');
+        const pchInput = document.getElementById('qty-pouches');
+        const lseInput = document.getElementById('qty-loose');
+        const valInput = document.getElementById('dsr-value');
+        const labelCalc = document.getElementById('calc-estimate-label');
+
+        function calculateEstimate() {
+            const b = parseInt(btlInput.value) || 0;
+            const p = parseInt(pchInput.value) || 0;
+            const l = parseInt(lseInput.value) || 0;
+
+            const estimate = (b * RATES.bottles) + (p * RATES.pouches) + (l * RATES.loose);
+            labelCalc.textContent = `₹${estimate.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            
+            // Auto-fill total value input if it hasn't been manually typed yet, or updates matches
+            valInput.value = estimate.toFixed(2);
+        }
+
+        [btlInput, pchInput, lseInput].forEach(inp => {
+            inp.addEventListener('input', calculateEstimate);
+            inp.addEventListener('change', calculateEstimate);
+        });
+
+        // 4. Handle Offline storage queue
+        function loadPendingQueue() {
+            state.pendingQueue = JSON.parse(localStorage.getItem('truflavr_pending_reports') || '[]');
+            updateQueueUI();
+        }
+
+        function savePendingQueue() {
+            localStorage.setItem('truflavr_pending_reports', JSON.stringify(state.pendingQueue));
+            updateQueueUI();
+        }
+
+        function updateQueueUI() {
+            const banner = document.getElementById('pending-sync-banner');
+            const countLabel = document.getElementById('pending-count');
+            
+            if (state.pendingQueue.length > 0) {
+                banner.classList.remove('hidden');
+                countLabel.textContent = state.pendingQueue.length;
+            } else {
+                banner.classList.add('hidden');
+            }
+        }
+
+        // 5. Submit single record to Supabase
+        async function submitToSupabase(record) {
+            const endpoint = `${state.config.url}/rest/v1/dsr_submissions`;
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': state.config.key,
+                    'Authorization': `Bearer ${state.config.key}`,
+                    'Prefer': 'return=representation'
+                },
+                body: JSON.stringify(record)
+            });
+
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(text || 'Failed to submit to cloud database');
+            }
+            return await response.json();
+        }
+
+        // 6. Sync queue loop
+        async function syncOfflineQueue() {
+            if (state.pendingQueue.length === 0) return;
+            
+            showBanner('Syncing offline reports...', 'info');
+            
+            const remaining = [];
+            let successCount = 0;
+            let errorOccurred = false;
+
+            for (const record of state.pendingQueue) {
+                try {
+                    await submitToSupabase(record);
+                    successCount++;
+                } catch (err) {
+                    console.error('Error syncing record:', err);
+                    remaining.push(record);
+                    errorOccurred = true;
+                }
+            }
+
+            state.pendingQueue = remaining;
+            savePendingQueue();
+
+            if (successCount > 0) {
+                showBanner(`Successfully synced ${successCount} offline report(s)!`, 'success');
+            }
+            if (errorOccurred) {
+                showBanner(`Failed to sync some reports. Check connection and try again.`, 'error');
+            }
+        }
+
+        function showBanner(message, type) {
+            const banner = document.getElementById('status-banner');
+            banner.className = `alert-banner alert-${type}`;
+            banner.innerHTML = `<i data-lucide="${type === 'success' ? 'check-circle' : type === 'error' ? 'alert-triangle' : 'info'}"></i> <span>${message}</span>`;
+            banner.classList.remove('hidden');
+            lucide.createIcons();
+            
+            // Auto hide success banners after 5 seconds
+            if (type === 'success') {
+                setTimeout(() => banner.classList.add('hidden'), 5000);
+            }
+        }
+
+        // Form Submit Handler
+        document.getElementById('dsr-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const btn = document.getElementById('btn-submit-dsr');
+            const btnIcon = document.getElementById('btn-icon');
+            const btnText = document.getElementById('btn-text');
+
+            // Disable button & show spinner
+            btn.disabled = true;
+            btnText.textContent = 'Submitting...';
+            btnIcon.className = 'spinner';
+
+            const record = {
+                date: document.getElementById('dsr-date').value,
+                sender: document.getElementById('dsr-rep').value,
+                beat: document.getElementById('dsr-beat').value.trim(),
+                distributor: document.getElementById('dsr-distributor').value.trim(),
+                bottles: parseInt(btlInput.value) || 0,
+                pouches: parseInt(pchInput.value) || 0,
+                loose: parseInt(lseInput.value) || 0,
+                reportedValue: parseFloat(valInput.value) || 0,
+                created_at: new Date().toISOString()
+            };
+
+            try {
+                // Try online submit first
+                await submitToSupabase(record);
+                showBanner('Report submitted successfully to cloud!', 'success');
+                
+                // Clear input quantities & beat/distributor for next input
+                btlInput.value = 0;
+                pchInput.value = 0;
+                lseInput.value = 0;
+                calculateEstimate();
+                document.getElementById('dsr-beat').value = '';
+                document.getElementById('dsr-distributor').value = '';
+            } catch (err) {
+                console.error('Online submit failed, queuing offline:', err);
+                // Save to offline queue
+                state.pendingQueue.push(record);
+                savePendingQueue();
+                showBanner('Offline: Report saved to device queue.', 'info');
+            } finally {
+                // Restore button
+                btn.disabled = false;
+                btnText.textContent = 'Submit Report';
+                btnIcon.className = '';
+                btnIcon.setAttribute('data-lucide', 'send');
+                lucide.createIcons();
+            }
+        });
+
+        // Event listeners
+        document.getElementById('btn-sync-now').addEventListener('click', syncOfflineQueue);
+
+        // Auto Sync when browser goes online
+        window.addEventListener('online', syncOfflineQueue);
+
+        // Run Check Configuration
+        if (checkConfiguration()) {
+            initDate();
+            loadPendingQueue();
+            calculateEstimate();
+            
+            // Run background sync check immediately if online
+            if (navigator.onLine) {
+                syncOfflineQueue();
+            }
+        }
+    </script>
+</body>
+</html>
