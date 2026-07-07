@@ -426,11 +426,38 @@
         </div>
     </div>
 
+    <!-- Submission Success / WhatsApp Share Modal Overlay -->
+    <div id="success-modal-overlay" class="config-overlay hidden">
+        <div class="config-card" style="max-width: 420px; text-align: left; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem; border-bottom: 1px solid var(--card-border); padding-bottom: 0.75rem;">
+                <div id="success-modal-icon-bg" style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); color: var(--accent-emerald); padding: 0.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                    <i id="success-modal-icon" data-lucide="check-circle" style="width: 24px; height: 24px;"></i>
+                </div>
+                <div>
+                    <h3 id="success-modal-title" style="font-size: 1.1rem; font-weight: 700; color: var(--text-primary);">Report Submitted!</h3>
+                    <p id="success-modal-status" style="font-size: 0.775rem; color: var(--accent-emerald); font-weight: 500;">Saved to database successfully.</p>
+                </div>
+            </div>
+            
+            <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--card-border); border-radius: 8px; padding: 0.85rem; font-family: monospace; white-space: pre-wrap; font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5; max-height: 180px; overflow-y: auto;" id="share-text-preview">
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.5rem;">
+                <button class="btn-submit" id="btn-share-whatsapp" style="background: #25d366; box-shadow: 0 4px 12px rgba(37, 211, 102, 0.25); display: flex; align-items: center; justify-content: center; gap: 0.5rem; border: none; font-size: 0.925rem; font-weight: 600; padding: 0.85rem; border-radius: 8px; cursor: pointer; color: white;">
+                    <i data-lucide="share-2"></i> Share to WhatsApp Group
+                </button>
+                <button class="btn-submit" id="btn-success-close" style="background: transparent; border: 1px solid var(--input-border); color: var(--text-secondary); box-shadow: none; font-size: 0.925rem; font-weight: 600; padding: 0.85rem; border-radius: 8px; cursor: pointer;">
+                    Submit Another Report
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        // Setup Pricing rates (Bottle: 70, Pouch: 8.3465, Loose: 400)
+        // Setup Pricing rates
         const RATES = {
             bottles: 70.00,
-            pouches: 8.3465,
+            pouches: 7.00,
             loose: 400.00
         };
 
@@ -447,24 +474,45 @@
         lucide.createIcons();
 
         // 1. Check Config from URL or LocalStorage
-        function checkConfiguration() {
+         function checkConfiguration() {
             const urlParams = new URLSearchParams(window.location.search);
-            const queryUrl = urlParams.get('url');
-            const queryKey = urlParams.get('key');
+            let queryUrl = urlParams.get('url') ? urlParams.get('url').trim() : null;
+            const queryKey = urlParams.get('key') ? urlParams.get('key').trim() : null;
 
             if (queryUrl && queryKey) {
+                if (!queryUrl.startsWith('http://') && !queryUrl.startsWith('https://')) {
+                    queryUrl = 'https://' + queryUrl;
+                }
                 // Save config to LocalStorage
                 localStorage.setItem('truflavr_supabase_url', queryUrl);
                 localStorage.setItem('truflavr_supabase_key', queryKey);
                 state.config.url = queryUrl;
                 state.config.key = queryKey;
                 
+                // Save rates if passed in query params
+                const qB = urlParams.get('b');
+                const qP = urlParams.get('p');
+                const qL = urlParams.get('l');
+                if (qB) localStorage.setItem('truflavr_rate_b', qB);
+                if (qP) localStorage.setItem('truflavr_rate_p', qP);
+                if (qL) localStorage.setItem('truflavr_rate_l', qL);
+                
                 // Clean URL query parameters
                 window.history.replaceState({}, document.title, window.location.pathname);
             } else {
-                state.config.url = localStorage.getItem('truflavr_supabase_url') || '';
+                let savedUrl = localStorage.getItem('truflavr_supabase_url') || '';
+                if (savedUrl && !savedUrl.startsWith('http://') && !savedUrl.startsWith('https://')) {
+                    savedUrl = 'https://' + savedUrl;
+                    localStorage.setItem('truflavr_supabase_url', savedUrl);
+                }
+                state.config.url = savedUrl;
                 state.config.key = localStorage.getItem('truflavr_supabase_key') || '';
             }
+
+            // Update RATES from localStorage if available
+            RATES.bottles = parseFloat(localStorage.getItem('truflavr_rate_b')) || 70.00;
+            RATES.pouches = parseFloat(localStorage.getItem('truflavr_rate_p')) || 7.00;
+            RATES.loose = parseFloat(localStorage.getItem('truflavr_rate_l')) || 400.00;
 
             if (!state.config.url || !state.config.key) {
                 document.getElementById('config-missing-overlay').classList.remove('hidden');
@@ -561,6 +609,7 @@
             const remaining = [];
             let successCount = 0;
             let errorOccurred = false;
+            let lastError = '';
 
             for (const record of state.pendingQueue) {
                 try {
@@ -570,6 +619,7 @@
                     console.error('Error syncing record:', err);
                     remaining.push(record);
                     errorOccurred = true;
+                    lastError = err.message;
                 }
             }
 
@@ -580,7 +630,7 @@
                 showBanner(`Successfully synced ${successCount} offline report(s)!`, 'success');
             }
             if (errorOccurred) {
-                showBanner(`Failed to sync some reports. Check connection and try again.`, 'error');
+                showBanner(`Failed to sync: ${lastError || 'Check connection.'}`, 'error');
             }
         }
 
@@ -597,6 +647,75 @@
             }
         }
 
+        function showSuccessModal(record, isOnline) {
+            const overlay = document.getElementById('success-modal-overlay');
+            const title = document.getElementById('success-modal-title');
+            const status = document.getElementById('success-modal-status');
+            const iconBg = document.getElementById('success-modal-icon-bg');
+            const icon = document.getElementById('success-modal-icon');
+            const preview = document.getElementById('share-text-preview');
+            const btnShare = document.getElementById('btn-share-whatsapp');
+            const btnClose = document.getElementById('btn-success-close');
+
+            const dateParts = record.date.split('-');
+            const formattedDate = dateParts.length === 3 ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}` : record.date;
+            
+            const estVal = (record.bottles * RATES.bottles) + 
+                           (record.pouches * RATES.pouches) + 
+                           (record.loose * RATES.loose);
+
+            const shareText = `*Daily Sales Report*\n` +
+                              `*Date:* ${formattedDate}\n` +
+                              `*Sales Rep:* ${record.sender}\n` +
+                              `*Beat/Route:* ${record.beat}\n` +
+                              `*Distributor:* ${record.distributor}\n\n` +
+                              `*Quantities Sold:*\n` +
+                              `- Bottles: ${record.bottles} Btl\n` +
+                              `- Pouches: ${record.pouches} Pch\n` +
+                              `- Loose: ${record.loose} Lse\n\n` +
+                              `*Calculated Value:* ₹${estVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` +
+                              `*Reported Invoice Value:* ₹${record.reportedValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n\n` +
+                              `_Submitted via Tru Flavr Portal_`;
+
+            preview.textContent = shareText;
+
+            if (isOnline) {
+                title.textContent = 'Report Submitted!';
+                status.textContent = 'Saved to database successfully.';
+                status.style.color = 'var(--accent-emerald)';
+                iconBg.style.background = 'rgba(16, 185, 129, 0.1)';
+                iconBg.style.borderColor = 'rgba(16, 185, 129, 0.2)';
+                iconBg.style.color = 'var(--accent-emerald)';
+                icon.className = 'lucide-check-circle';
+                icon.setAttribute('data-lucide', 'check-circle');
+            } else {
+                title.textContent = 'Report Saved Offline';
+                status.textContent = 'Saved to offline queue (will sync later).';
+                status.style.color = '#f59e0b';
+                iconBg.style.background = 'rgba(245, 158, 11, 0.1)';
+                iconBg.style.borderColor = 'rgba(245, 158, 11, 0.2)';
+                iconBg.style.color = '#f59e0b';
+                icon.className = 'lucide-cloud-off';
+                icon.setAttribute('data-lucide', 'cloud-off');
+            }
+            lucide.createIcons();
+
+            const newBtnShare = btnShare.cloneNode(true);
+            btnShare.parentNode.replaceChild(newBtnShare, btnShare);
+            newBtnShare.addEventListener('click', () => {
+                const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+                window.open(url, '_blank');
+            });
+
+            const newBtnClose = btnClose.cloneNode(true);
+            btnClose.parentNode.replaceChild(newBtnClose, btnClose);
+            newBtnClose.addEventListener('click', () => {
+                overlay.classList.add('hidden');
+            });
+
+            overlay.classList.remove('hidden');
+        }
+
         // Form Submit Handler
         document.getElementById('dsr-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -605,7 +724,6 @@
             const btnIcon = document.getElementById('btn-icon');
             const btnText = document.getElementById('btn-text');
 
-            // Disable button & show spinner
             btn.disabled = true;
             btnText.textContent = 'Submitting...';
             btnIcon.className = 'spinner';
@@ -623,11 +741,10 @@
             };
 
             try {
-                // Try online submit first
                 await submitToSupabase(record);
                 showBanner('Report submitted successfully to cloud!', 'success');
+                showSuccessModal(record, true);
                 
-                // Clear input quantities & beat/distributor for next input
                 btlInput.value = 0;
                 pchInput.value = 0;
                 lseInput.value = 0;
@@ -636,12 +753,18 @@
                 document.getElementById('dsr-distributor').value = '';
             } catch (err) {
                 console.error('Online submit failed, queuing offline:', err);
-                // Save to offline queue
                 state.pendingQueue.push(record);
                 savePendingQueue();
-                showBanner('Offline: Report saved to device queue.', 'info');
+                showBanner(`Offline: Saved to queue. (Error: ${err.message})`, 'error');
+                showSuccessModal(record, false);
+                
+                btlInput.value = 0;
+                pchInput.value = 0;
+                lseInput.value = 0;
+                calculateEstimate();
+                document.getElementById('dsr-beat').value = '';
+                document.getElementById('dsr-distributor').value = '';
             } finally {
-                // Restore button
                 btn.disabled = false;
                 btnText.textContent = 'Submit Report';
                 btnIcon.className = '';
