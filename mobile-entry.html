@@ -349,13 +349,7 @@
             <div class="form-group">
                 <label for="dsr-rep"><i data-lucide="user"></i> Sales Representative</label>
                 <select id="dsr-rep" class="input-ctrl" required>
-                    <option value="" disabled selected>Select Your Name</option>
-                    <option value="Kamini (Surat)">Kamini (Surat)</option>
-                    <option value="Krish (Baroda)">Krish (Baroda)</option>
-                    <option value="Jignesh Vadodariya (Rajkot)">Jignesh (Rajkot)</option>
-                    <option value="Bipin (AHM)">Bipin (AHM)</option>
-                    <option value="Prakash (Vapi)">Prakash (Vapi)</option>
-                    <option value="Krunal (Vapi)">Krunal (Vapi)</option>
+                    <option value="" disabled selected>Loading representatives...</option>
                 </select>
             </div>
 
@@ -773,6 +767,66 @@
             }
         });
 
+        async function loadSalesRepsDropdown() {
+            const select = document.getElementById('dsr-rep');
+            if (!select) return;
+
+            let reps = [];
+            try {
+                reps = JSON.parse(localStorage.getItem('truflavr_sales_reps')) || [];
+            } catch (e) {
+                console.error('Failed to parse cached sales reps:', e);
+            }
+
+            if (reps.length === 0) {
+                reps = [
+                    "Kamini (Surat)",
+                    "Krish (Baroda)",
+                    "Jignesh Vadodariya (Rajkot)",
+                    "Bipin (AHM)",
+                    "Prakash (Vapi)",
+                    "Krunal (Vapi)"
+                ];
+            }
+
+            populateDropdown(reps);
+
+            if (!state.config.url || !state.config.key) return;
+
+            try {
+                const endpoint = `${state.config.url}/rest/v1/sales_reps?status=eq.Active&select=name`;
+                const response = await fetch(endpoint, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': state.config.key,
+                        'Authorization': `Bearer ${state.config.key}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.length > 0) {
+                        const fetchedReps = data.map(item => item.name).sort();
+                        localStorage.setItem('truflavr_sales_reps', JSON.stringify(fetchedReps));
+                        populateDropdown(fetchedReps);
+                    }
+                }
+            } catch (err) {
+                console.warn('Could not fetch active reps from Supabase, using offline cache:', err);
+            }
+
+            function populateDropdown(list) {
+                select.innerHTML = '<option value="" disabled selected>Select Your Name</option>';
+                list.forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    select.appendChild(opt);
+                });
+            }
+        }
+
         // Event listeners
         document.getElementById('btn-sync-now').addEventListener('click', syncOfflineQueue);
 
@@ -783,6 +837,7 @@
         if (checkConfiguration()) {
             initDate();
             loadPendingQueue();
+            loadSalesRepsDropdown();
             calculateEstimate();
             
             // Run background sync check immediately if online

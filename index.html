@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sales Rep data extraction, WhatsApp daily sales report parser, week on week beat wise and month on month sales tracker.">
+    <title>SR Sales Monitor - Sales & Beat Intelligence</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- QRCode.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    
+    <!-- Custom Stylesheet -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="app-sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-logo">
+                    <i data-lucide="bar-chart-3" class="brand-icon"></i>
+                </div>
+                <div class="brand-text">
+                    <h2>SR Monitor</h2>
+                    <span>Sales & Beat Intelligence</span>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-tab="overview">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Overview Dashboard</span>
+                </button>
+                <button class="nav-item" data-tab="upload">
+                    <i data-lucide="upload-cloud"></i>
+                    <span>Extract & Upload</span>
+                    <span class="badge badge-success hidden" id="pending-badge">New</span>
+                </button>
+                <button class="nav-item" data-tab="reps">
+                    <i data-lucide="users"></i>
+                    <span>Sales Rep Hub</span>
+                </button>
+                <button class="nav-item" data-tab="distributors">
+                    <i data-lucide="building-2"></i>
+                    <span>Distributor Hub</span>
+                </button>
+                <button class="nav-item" data-tab="beats">
+                    <i data-lucide="map-pin"></i>
+                    <span>Beat WoW Analysis</span>
+                </button>
+                <button class="nav-item" data-tab="trends">
+                    <i data-lucide="trending-up"></i>
+                    <span>MoM Trends</span>
+                </button>
+                <button class="nav-item" data-tab="insights">
+                    <i data-lucide="sparkles"></i>
+                    <span>Smart Insights</span>
+                </button>
+                <button class="nav-item" data-tab="settings">
+                    <i data-lucide="settings"></i>
+                    <span>Settings & Tools</span>
+                </button>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="user-profile">
+                    <div class="user-avatar">SR</div>
+                    <div class="user-info">
+                        <span class="user-name">Sales Manager</span>
+                        <span class="user-role">Administrator</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="app-main">
+            <!-- Header with Dynamic Filters -->
+            <header class="app-header">
+                <div class="header-title">
+                    <span class="header-tag" id="tab-indicator">WORKSPACE</span>
+                    <h1 id="main-title">Overview Dashboard</h1>
+                </div>
+                
+                <!-- Global Filters -->
+                <div class="header-filters" id="global-filters">
+                    <div class="filter-group">
+                        <label for="filter-date-range"><i data-lucide="calendar"></i> Range</label>
+                        <select id="filter-date-range" class="filter-select">
+                            <option value="all" selected>All Time</option>
+                            <option value="month">This Month</option>
+                            <option value="week">This Week</option>
+                            <option value="custom">Custom Date Range</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-sales-rep"><i data-lucide="user"></i> Sales Rep</label>
+                        <select id="filter-sales-rep" class="filter-select">
+                            <option value="all" selected>All Sales Reps</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-month"><i data-lucide="calendar-days"></i> Month</label>
+                        <select id="filter-month" class="filter-select">
+                            <option value="all" selected>All Months</option>
+                        </select>
+                    </div>
+                    
+                    <div id="custom-date-ctrls" class="filter-ctrl hidden">
+                        <div class="filter-group">
+                            <label for="start-date">Start Date</label>
+                            <input type="date" id="start-date" class="filter-input">
+                        </div>
+                        <div class="filter-group">
+                            <label for="end-date">End Date</label>
+                            <input type="date" id="end-date" class="filter-input">
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Tab Content Viewport -->
+            <div class="tab-viewport">
+                
+                <!-- 1. OVERVIEW DASHBOARD -->
+                <section class="tab-pane active" id="pane-overview">
+                    <!-- KPI Stats Grid -->
+                    <div class="stats-grid">
+                        <div class="stat-card indigo-border">
+                            <div class="card-header-mini">
+                                <span>System Calc Value</span>
+                                <i data-lucide="indian-rupee" class="text-indigo"></i>
+                            </div>
+                            <div class="stat-value" id="stat-total-value">₹0.00</div>
+                            <div class="stat-label">Calculated from system rates</div>
+                            <div class="stat-indicator trend-neutral" id="value-trend">
+                                <i data-lucide="minus"></i> <span>No comparison data</span>
+                            </div>
+                        </div>
+                        <div class="stat-card cyan-border">
+                            <div class="card-header-mini">
+                                <span>SR Reported Value</span>
+                                <i data-lucide="indian-rupee" class="text-cyan"></i>
+                            </div>
+                            <div class="stat-value" id="stat-reported-value">₹0.00</div>
+                            <div class="stat-label" id="stat-discrepancy-label">Discrepancy: ₹0.00</div>
+                            <div class="stat-indicator trend-neutral" id="reported-value-trend">
+                                <i data-lucide="minus"></i> <span>No comparison data</span>
+                            </div>
+                        </div>
+                        <div class="stat-card cyan-border">
+                            <div class="card-header-mini">
+                                <span>Bottles Sold</span>
+                                <i data-lucide="package" class="text-cyan"></i>
+                            </div>
+                            <div class="stat-value" id="stat-total-bottles">0</div>
+                            <div class="stat-label">Total bottle sales units</div>
+                            <div class="stat-indicator trend-neutral" id="bottles-trend">
+                                <i data-lucide="minus"></i> <span>0% WoW change</span>
+                            </div>
+                        </div>
+                        <div class="stat-card emerald-border">
+                            <div class="card-header-mini">
+                                <span>Pouches Sold</span>
+                                <i data-lucide="layers" class="text-emerald"></i>
+                            </div>
+                            <div class="stat-value" id="stat-total-pouches">0</div>
+                            <div class="stat-label">Total pouch sales units</div>
+                            <div class="stat-indicator trend-neutral" id="pouches-trend">
+                                <i data-lucide="minus"></i> <span>0% WoW change</span>
+                            </div>
+                        </div>
+                        <div class="stat-card violet-border">
+                            <div class="card-header-mini">
+                                <span>Loose Sales</span>
+                                <i data-lucide="activity" class="text-violet"></i>
+                            </div>
+                            <div class="stat-value" id="stat-total-loose">0</div>
+                            <div class="stat-label">Loose sales / special units</div>
+                            <div class="stat-indicator trend-neutral" id="loose-trend">
+                                <i data-lucide="minus"></i> <span>0% WoW change</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dashboard Graphs -->
+                    <div class="charts-grid">
+                        <div class="dashboard-card" style="grid-column: span 2;">
+                            <div class="card-header-main">
+                                <h3>Sales Trend (By Category)</h3>
+                                <div class="filter-group">
+                                    <select id="overview-chart-metric" class="filter-select">
+                                        <option value="volume" selected>Volume (Units)</option>
+                                        <option value="value">Value (Revenue)</option>
+                                        <option value="bottles">Bottles Only (Qty)</option>
+                                        <option value="pouches">Pouches Only (Qty)</option>
+                                        <option value="loose">Loose Sales Only (Qty)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="chart-sales-trend"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+
+                </section>
+
+                <!-- 2. EXTRACT & UPLOAD HUB -->
+                <section class="tab-pane" id="pane-upload">
+                    <div class="upload-wrapper" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
+                        <!-- Local File Upload Card -->
+                        <div class="dashboard-card">
+                            <div class="card-header-main">
+                                <h3>Upload Daily Sales Report</h3>
+                            </div>
+                            
+                            <div class="alert-banner alert-banner-info">
+                                <i data-lucide="info" style="flex-shrink: 0;"></i>
+                                <div>
+                                    <strong>How it works:</strong> Export your WhatsApp daily sales group chat as a <strong>.txt</strong> file and drop it here. The parser will automatically scan the chat logs, find message patterns containing sales data, and list them below. You will be able to review, edit, and confirm each record before saving.
+                                </div>
+                            </div>
+
+                            <div class="dropzone" id="report-dropzone" style="padding: 2rem 1rem;">
+                                <div class="dropzone-icon">
+                                    <i data-lucide="file-text"></i>
+                                </div>
+                                <h4>Drag & Drop Daily Report TXT File</h4>
+                                <p>or click to browse local files</p>
+                                <button class="btn btn-primary" id="btn-browse-file">Browse File</button>
+                                <input type="file" id="file-uploader" class="file-input" accept=".txt">
+                            </div>
+                        </div>
+
+                        <!-- Cloud Submissions Sync Card -->
+                        <div class="dashboard-card" id="cloud-sync-card">
+                            <div class="card-header-main">
+                                <h3>Cloud Submission Sync</h3>
+                                <span class="badge" id="cloud-connection-status" style="background: rgba(239, 68, 68, 0.1); color: var(--accent-rose); border: 1px solid rgba(239, 68, 68, 0.2);">Disconnected</span>
+                            </div>
+                            
+                            <div class="alert-banner alert-banner-info">
+                                <i data-lucide="cloud" style="flex-shrink: 0;"></i>
+                                <div>
+                                    <strong>Real-Time Sales Submissions:</strong> Fetch new daily sales reports submitted by representatives directly from their mobile phones.
+                                </div>
+                            </div>
+                            
+                            <div class="sync-panel-content" style="display: flex; flex-direction: column; gap: 0.75rem; align-items: center; justify-content: center; padding: 2rem 1rem; text-align: center; border: 1px dashed rgba(255, 255, 255, 0.05); border-radius: var(--radius-lg); background-color: rgba(15, 23, 42, 0.15);">
+                                <div class="sync-icon-wrapper" id="sync-icon-container" style="width: 56px; height: 56px; border-radius: var(--radius-md); background-color: rgba(99, 102, 241, 0.05); display: flex; align-items: center; justify-content: center; color: var(--accent-indigo); margin-bottom: 0.5rem;">
+                                    <i data-lucide="refresh-cw" id="icon-cloud-sync" style="width: 28px; height: 28px;"></i>
+                                </div>
+                                <h4 id="cloud-sync-title">Fetch Mobile Submissions</h4>
+                                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;" id="cloud-sync-desc">Configure cloud database settings to fetch sales rep submissions.</p>
+                                <button class="btn btn-primary" id="btn-sync-cloud" style="display: flex; align-items: center; gap: 0.5rem; justify-content: center;" disabled>
+                                    <i data-lucide="cloud-download"></i> Sync Cloud Submissions
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                        <!-- Parsed Records Review Section -->
+                        <div class="dashboard-card hidden" id="preview-section">
+                            <div class="card-header-main">
+                                <h3>Parsed Report Records (<span id="parsed-count">0</span>)</h3>
+                                <div style="display: flex; gap: 0.75rem;">
+                                    <button class="btn btn-secondary btn-sm" id="btn-clear-preview">Discard All</button>
+                                    <button class="btn btn-primary btn-sm" id="btn-save-all-parsed">Save Confirmed Records</button>
+                                </div>
+                            </div>
+
+                            <div id="preview-alert-container"></div>
+                            
+                            <div class="preview-records-list" id="parsed-records-container">
+                                <!-- Dynamic entries go here -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3. SALES REP HUB -->
+                <section class="tab-pane" id="pane-reps">
+                    <div class="layout-grid-two" style="grid-template-columns: 1fr 2fr; align-items: start;">
+                        <!-- Rep List Card -->
+                        <div class="dashboard-card">
+                            <div class="card-header-main">
+                                <h3>Sales Rep Leaderboard</h3>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <input type="text" id="rep-search-input" class="form-control" placeholder="Search sales rep...">
+                            </div>
+                            <div class="table-responsive">
+                                <table class="custom-table" id="rep-leaderboard-table">
+                                    <thead>
+                                        <tr>
+                                            <th>SR Name</th>
+                                            <th style="text-align: right;">Total Sales</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Dynamic entries -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Rep Detail Card (Initially placeholder, then populates on selection) -->
+                        <div class="dashboard-card" id="rep-detail-card">
+                            <div class="card-header-main">
+                                <h3 id="detail-rep-name">Select a Representative</h3>
+                                <span class="badge badge-success hidden" id="detail-rep-status">Active</span>
+                            </div>
+                            
+                            <div id="rep-detail-placeholder" style="text-align: center; padding: 4rem 2rem; color: var(--text-muted);">
+                                <i data-lucide="user-check" style="width: 48px; height: 48px; margin-bottom: 1rem; opacity: 0.5;"></i>
+                                <p>Click on any Sales Representative in the leaderboard to view detailed metrics, route history, and product sales breakdown.</p>
+                            </div>
+
+                            <div id="rep-detail-content" class="hidden">
+                                <div class="stats-grid" style="margin-bottom: 1.5rem;">
+                                    <div class="stat-card" style="padding: 1rem;">
+                                        <div class="card-header-mini"><span>Total Revenue</span></div>
+                                        <div class="stat-value" id="detail-rep-revenue" style="font-size: 1.5rem;">₹0.00</div>
+                                    </div>
+                                    <div class="stat-card" style="padding: 1rem;">
+                                        <div class="card-header-mini"><span>Bottles</span></div>
+                                        <div class="stat-value" id="detail-rep-bottles" style="font-size: 1.5rem;">0</div>
+                                    </div>
+                                    <div class="stat-card" style="padding: 1rem;">
+                                        <div class="card-header-mini"><span>Pouches</span></div>
+                                        <div class="stat-value" id="detail-rep-pouches" style="font-size: 1.5rem;">0</div>
+                                    </div>
+                                    <div class="stat-card" style="padding: 1rem;">
+                                        <div class="card-header-mini"><span>Loose Sales</span></div>
+                                        <div class="stat-value" id="detail-rep-loose" style="font-size: 1.5rem;">0</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="charts-grid" style="grid-template-columns: 1fr; margin-bottom: 1.5rem;">
+                                    <div class="dashboard-card" style="border: none; padding: 0;">
+                                        <h4 style="margin-bottom: 1rem; font-family: var(--font-display);">Rep Sales Over Time</h4>
+                                        <div class="chart-container" style="height: 200px;">
+                                            <canvas id="chart-rep-trend"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <h4 style="margin-bottom: 0.75rem; font-family: var(--font-display);">Coverage History</h4>
+                                <div class="table-responsive">
+                                    <table class="custom-table" id="rep-history-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Route/Beat</th>
+                                                <th>Distributor</th>
+                                                <th>Bottles</th>
+                                                <th>Pouches</th>
+                                                <th>Loose</th>
+                                                <th>System Calc</th>
+                                                <th>SR Reported</th>
+                                                <th>Variance</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- Dynamic history lines -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3B. DISTRIBUTOR HUB -->
+                <section class="tab-pane" id="pane-distributors">
+                    <div class="layout-grid-two" style="grid-template-columns: 1fr 2fr; align-items: start;">
+                        <!-- Distributor List Card -->
+                        <div class="dashboard-card">
+                            <div class="card-header-main">
+                                <h3>Distributors Directory</h3>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <input type="text" id="dist-search-input" class="form-control" placeholder="Search distributor...">
+                            </div>
+                            <div class="table-responsive">
+                                <table class="custom-table" id="dist-leaderboard-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Distributor Name</th>
+                                            <th style="text-align: right;">Total Purchased</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Dynamic entries -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Distributor Detail Card -->
+                        <div class="dashboard-card" id="dist-detail-card">
+                            <div class="card-header-main">
+                                <h3 id="detail-dist-name">Select a Distributor</h3>
+                                <span class="badge badge-success hidden" id="detail-dist-status">Registered</span>
+                            </div>
+                            
+                            <div id="dist-detail-placeholder" style="text-align: center; padding: 4rem 2rem; color: var(--text-muted);">
+                                <i data-lucide="building-2" style="width: 48px; height: 48px; margin-bottom: 1rem; opacity: 0.5;"></i>
+                                <p>Click on any Distributor in the list to view purchase history, product sales breakdown, and sales representative coverages.</p>
+                            </div>
+
+                            <div id="dist-detail-content" class="hidden">
+                                <div class="stats-grid" style="margin-bottom: 1.5rem;">
+                                    <div class="stat-card" style="padding: 1rem;">
+                                        <div class="card-header-mini"><span>Total Purchases</span></div>
+                                        <div class="stat-value" id="detail-dist-revenue" style="font-size: 1.5rem;">₹0.00</div>
+                                    </div>
+                                    <div class="stat-card" style="padding: 1rem;">
+                                        <div class="card-header-mini"><span>Bottles</span></div>
+                                        <div class="stat-value" id="detail-dist-bottles" style="font-size: 1.5rem;">0</div>
+                                    </div>
+                                    <div class="stat-card" style="padding: 1rem;">
+                                        <div class="card-header-mini"><span>Pouches</span></div>
+                                        <div class="stat-value" id="detail-dist-pouches" style="font-size: 1.5rem;">0</div>
+                                    </div>
+                                    <div class="stat-card" style="padding: 1rem;">
+                                        <div class="card-header-mini"><span>Loose Sales</span></div>
+                                        <div class="stat-value" id="detail-dist-loose" style="font-size: 1.5rem;">0</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="charts-grid" style="grid-template-columns: 1fr; margin-bottom: 1.5rem;">
+                                    <div class="dashboard-card" style="border: none; padding: 0;">
+                                        <h4 style="margin-bottom: 1rem; font-family: var(--font-display);">Purchases Over Time</h4>
+                                        <div class="chart-container" style="height: 200px;">
+                                            <canvas id="chart-dist-trend"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <h4 style="margin-bottom: 0.75rem; font-family: var(--font-display);">Supply & Coverage History</h4>
+                                <div class="table-responsive">
+                                    <table class="custom-table" id="dist-history-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Sales Rep</th>
+                                                <th>Route/Beat</th>
+                                                <th>Bottles</th>
+                                                <th>Pouches</th>
+                                                <th>Loose</th>
+                                                <th>Est. Value</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- Dynamic history lines -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 4. BEAT WOW ANALYSIS -->
+                <section class="tab-pane" id="pane-beats">
+                    <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+                        <div class="card-header-main">
+                            <h3>Week-on-Week Beat Performance</h3>
+                            <div style="display: flex; gap: 0.75rem; align-items: center;">
+                                <div class="filter-group">
+                                    <label for="wow-week-a">Week A (Reference)</label>
+                                    <select id="wow-week-a" class="filter-select">
+                                        <!-- Dynamic options -->
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label for="wow-week-b">Week B (Comparison)</label>
+                                    <select id="wow-week-b" class="filter-select">
+                                        <!-- Dynamic options -->
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="chart-container" style="height: 280px; margin-bottom: 1.5rem;">
+                            <canvas id="chart-beat-comparison"></canvas>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="custom-table" id="beat-wow-table">
+                                <thead>
+                                    <tr>
+                                        <th>Beat/Route Name</th>
+                                        <th>Active SRs</th>
+                                        <th style="text-align: right;" id="col-week-a-header">Week A Sales</th>
+                                        <th style="text-align: right;" id="col-week-b-header">Week B Sales</th>
+                                        <th style="text-align: right;">Abs Change</th>
+                                        <th style="text-align: right;">% Change</th>
+                                        <th>Trend</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Dynamic rows -->
+                                    <tr>
+                                        <td colspan="7" style="text-align: center; color: var(--text-muted);">Please upload daily reports to compute WoW metrics.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 5. MOM TRENDS -->
+                <section class="tab-pane" id="pane-trends">
+                    <div class="layout-grid-two">
+                        <!-- Chart Card -->
+                        <div class="dashboard-card">
+                            <div class="card-header-main">
+                                <h3>Monthly Revenue Trends</h3>
+                            </div>
+                            <div class="chart-container" style="height: 300px;">
+                                <canvas id="chart-mom-revenue"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Product Mix Card -->
+                        <div class="dashboard-card">
+                            <div class="card-header-main">
+                                <h3>Monthly Category Breakdown</h3>
+                            </div>
+                            <div class="chart-container" style="height: 300px;">
+                                <canvas id="chart-mom-category"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-card">
+                        <div class="card-header-main">
+                            <h3>Month-on-Month Performance Summary</h3>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="custom-table" id="mom-summary-table">
+                                <thead>
+                                    <tr>
+                                        <th>Month</th>
+                                        <th style="text-align: right;">Total Bottles</th>
+                                        <th style="text-align: right;">Total Pouches</th>
+                                        <th style="text-align: right;">Total Loose</th>
+                                        <th style="text-align: right;">Total Revenue</th>
+                                        <th style="text-align: right;">Growth %</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="6" style="text-align: center; color: var(--text-muted);">Please upload daily reports to compute MoM trends.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 6. SETTINGS & TOOLS -->
+                <section class="tab-pane" id="pane-settings">
+                    <div class="layout-grid-two">
+                        <!-- Price Configuration Card -->
+                        <div class="dashboard-card">
+                            <div class="card-header-main">
+                                <h3>Product Pricing Configuration</h3>
+                                <button class="btn btn-primary btn-sm" id="btn-save-prices">Save Prices</button>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="price-bottles">Bottle Price (₹ per unit)</label>
+                                <input type="number" id="price-bottles" class="form-control" step="0.01" value="45.00">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="price-pouches">Pouch Price (₹ per unit)</label>
+                                <input type="number" id="price-pouches" class="form-control" step="0.01" value="5.00">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="price-loose">Loose Sale Price (₹ per unit)</label>
+                                <input type="number" id="price-loose" class="form-control" step="0.01" value="350.00">
+                            </div>
+                        </div>
+
+                        <!-- Data Actions Card -->
+                        <div class="dashboard-card">
+                            <div class="card-header-main">
+                                <h3>Data Management</h3>
+                            </div>
+                            
+                            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                                <div>
+                                    <h4 style="margin-bottom: 0.25rem;">Generate Mock Sales Data</h4>
+                                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">Fill the database with 2 months of mock records to test charts and reports.</p>
+                                    <button class="btn btn-secondary" id="btn-generate-mock">Generate Mock Data</button>
+                                </div>
+                                <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 0.5rem 0;">
+                                <div>
+                                    <h4 style="margin-bottom: 0.25rem;">Export Data</h4>
+                                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">Export all saved sales rep reports as a JSON backup.</p>
+                                    <button class="btn btn-secondary" id="btn-export-json"><i data-lucide="download"></i> Export JSON</button>
+                                </div>
+                                <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 0.5rem 0;">
+                                <div>
+                                    <h4 style="margin-bottom: 0.25rem; color: var(--accent-rose);">Reset Application Database</h4>
+                                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">Permanently erase all uploaded reports, settings, and local database entries.</p>
+                                    <button class="btn btn-danger" id="btn-reset-db">Erase All Data</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sales Representatives Registry Card -->
+                        <div class="dashboard-card" style="grid-column: span 2;">
+                            <div class="card-header-main">
+                                <h3>Sales Representatives Registry Management</h3>
+                                <button class="btn btn-secondary btn-sm" id="btn-sync-reps-cloud" style="display: flex; align-items: center; gap: 0.25rem;"><i data-lucide="refresh-cw"></i> Sync Reps to Cloud</button>
+                            </div>
+                            
+                            <div class="alert-banner alert-banner-info">
+                                <i data-lucide="info" style="flex-shrink:0;"></i>
+                                <div>
+                                    Manage active sales representatives. Deactivating a representative (setting them to "Inactive / Quit") removes them from the mobile entry dropdown on their phones, while fully keeping their historical reports and data intact in your dashboard.
+                                </div>
+                            </div>
+                            
+                            <!-- Add Rep Form -->
+                            <form id="add-rep-form" style="display: flex; gap: 1rem; align-items: flex-end; margin-bottom: 1.5rem; flex-wrap: wrap; margin-top: 1rem;">
+                                <div class="form-group" style="flex: 1; min-width: 200px; margin-bottom: 0;">
+                                    <label for="reg-rep-name">Sales Representative Name</label>
+                                    <input type="text" id="reg-rep-name" class="form-control" placeholder="e.g. John Doe (Baroda)" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary" style="height: 42px;">Add New Representative</button>
+                            </form>
+                            
+                            <!-- Reps Table -->
+                            <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+                                <table class="custom-table" id="reps-registry-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Sales Representative</th>
+                                            <th>Status</th>
+                                            <th style="width: 150px; text-align: right;">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Dynamic rows -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Phone Mapping Master Card -->
+                        <div class="dashboard-card" style="grid-column: span 2;">
+                            <div class="card-header-main">
+                                <h3>Sales Rep Phone Master Mapping</h3>
+                            </div>
+                            
+                            <div class="alert-banner alert-banner-info">
+                                <i data-lucide="info" style="flex-shrink:0;"></i>
+                                <div>
+                                    Match exported WhatsApp phone numbers (e.g. <code>+91 77779 91045</code>) to their actual Sales Representative names. When daily sales report files are parsed, the system will automatically match message sender numbers to these SR names.
+                                </div>
+                            </div>
+                            
+                            <!-- Mapping Form -->
+                            <form id="phone-mapping-form" style="display: flex; gap: 1rem; align-items: flex-end; margin-bottom: 1.5rem; flex-wrap: wrap;">
+                                <div class="form-group" style="flex: 1; min-width: 200px; margin-bottom: 0;">
+                                    <label for="map-phone-number">Mobile Number (with Country Code)</label>
+                                    <input type="text" id="map-phone-number" class="form-control" placeholder="+91 99999 99999" required>
+                                </div>
+                                <div class="form-group" style="flex: 1; min-width: 200px; margin-bottom: 0;">
+                                    <label for="map-sr-name">Sales Representative Name</label>
+                                    <input type="text" id="map-sr-name" class="form-control" placeholder="John Doe" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary" style="height: 42px;">Save Mapping</button>
+                            </form>
+                            
+                            <!-- Mapping Table -->
+                            <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+                                <table class="custom-table" id="phone-mappings-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Mobile Number</th>
+                                            <th>Sales Representative</th>
+                                            <th style="width: 100px; text-align: right;">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td colspan="3" style="text-align: center; color: var(--text-muted);">No phone mappings configured. Add one above!</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Cloud Sync & Mobile Configuration Card -->
+                        <div class="dashboard-card" style="grid-column: span 2;">
+                            <div class="card-header-main">
+                                <h3>Cloud Database Sync & Mobile Portal Setup</h3>
+                                <button class="btn btn-primary btn-sm" id="btn-save-cloud-config">Save Config</button>
+                            </div>
+                            
+                            <div class="alert-banner alert-banner-info">
+                                <i data-lucide="info" style="flex-shrink:0;"></i>
+                                <div>
+                                    Connect your dashboard to a cloud database (e.g. Supabase REST API) and generate a configuration QR Code. Representatives scan this QR Code once on their phones to link their entry portal to your database!
+                                </div>
+                            </div>
+                            
+                            <div class="layout-grid-two" style="grid-template-columns: 3fr 2fr; gap: 1.5rem; margin-top: 1rem; align-items: start;">
+                                <!-- Configuration Form -->
+                                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                                    <div class="form-group">
+                                        <label for="cloud-supabase-url">Supabase API URL</label>
+                                        <input type="text" id="cloud-supabase-url" class="form-control" placeholder="https://your-project.supabase.co">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="cloud-supabase-key">Supabase Anon Key / Service Token</label>
+                                        <input type="password" id="cloud-supabase-key" class="form-control" placeholder="your-anon-key-here">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="cloud-portal-url">Mobile Entry Portal Web URL</label>
+                                        <input type="text" id="cloud-portal-url" class="form-control" placeholder="https://your-domain.com/mobile-entry.html" value="mobile-entry.html">
+                                        <small style="color: var(--text-muted); font-size: 0.75rem;">If hosting online (e.g. Vercel, GitHub Pages), enter the full URL. Otherwise, keep the default local filename.</small>
+                                    </div>
+                                </div>
+                                
+                                <!-- QR Code Setup -->
+                                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1px dashed rgba(255, 255, 255, 0.05); border-radius: var(--radius-lg); padding: 1.5rem; background-color: rgba(15, 23, 42, 0.15); min-height: 250px;">
+                                    <div id="cloud-qrcode-container" style="background: white; padding: 10px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; width: 140px; height: 140px; box-shadow: var(--shadow-sm); cursor: pointer;">
+                                        <!-- Placeholder or QR Code -->
+                                        <div id="qrcode-placeholder" style="color: #64748b; font-size: 0.7rem; font-weight: 500; text-align: center;">Save configuration to generate QR Code</div>
+                                    </div>
+                                    <div id="cloud-qrcode-link-container"></div>
+                                    <button class="btn btn-secondary btn-sm" id="btn-copy-config-link" style="margin-top: 0.5rem; display: none; align-items: center; gap: 0.25rem; justify-content: center;"><i data-lucide="copy"></i> Copy Config Link</button>
+                                    <strong style="color: var(--text-primary); font-size: 0.85rem; margin-bottom: 0.25rem;">Scan to Setup Sales Rep Phone</strong>
+                                    <p style="color: var(--text-muted); font-size: 0.725rem; max-width: 200px; line-height: 1.4;">Rep scans this QR code to automatically configure their daily entry portal on their mobile device.</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Database Diagnostics Card -->
+                        <div class="dashboard-card" style="grid-column: span 2;">
+                            <div class="card-header-main">
+                                <h3>Database Senders Diagnostic Analysis</h3>
+                                <button class="btn btn-secondary btn-sm" onclick="runDatabaseDiagnostics()">Run Analysis</button>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="custom-table" id="db-diagnostics-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Sender Name in DB</th>
+                                            <th>Resolved Rep Name</th>
+                                            <th style="text-align: right;">Record Count</th>
+                                            <th style="text-align: right;">Total Bottles</th>
+                                            <th style="text-align: right;">Total Pouches</th>
+                                            <th style="text-align: right;">Total Value</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td colspan="6" style="text-align: center; color: var(--text-muted);">Click "Run Analysis" to inspect database contents.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- 7. SMART INSIGHTS & ANALYSIS -->
+                <section class="tab-pane" id="pane-insights">
+                    <!-- Insights Summary Overview -->
+                    <div class="dashboard-header-bar" style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h2 style="font-size: 1.5rem; font-weight: 600; color: var(--text-primary);">Sales & Beat Intelligence</h2>
+                            <p style="color: var(--text-muted); font-size: 0.875rem;">Heuristic intelligence and actionable business suggestions based on system records.</p>
+                        </div>
+                        <button class="btn btn-primary btn-sm" id="btn-refresh-insights">
+                            <i data-lucide="refresh-cw"></i> Refresh Analysis
+                        </button>
+                    </div>
+
+                    <div class="insights-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; margin-bottom: 2rem;">
+                        
+                        <!-- 1. Sales Representatives Suggestions -->
+                        <div class="dashboard-card" style="grid-column: span 2;">
+                            <div class="card-header-main" style="border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 0.75rem;">
+                                <h3><i data-lucide="users" class="text-indigo" style="vertical-align: middle; margin-right: 0.5rem;"></i> Sales Rep Suggestions & Audits</h3>
+                            </div>
+                            <div class="card-body" id="insights-reps-container" style="padding-top: 1rem; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                                <!-- Dynamically populated by JS -->
+                            </div>
+                        </div>
+
+                        <!-- 2. Beat & Route Optimization -->
+                        <div class="dashboard-card">
+                            <div class="card-header-main" style="border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 0.75rem;">
+                                <h3><i data-lucide="map-pin" class="text-violet" style="vertical-align: middle; margin-right: 0.5rem;"></i> Beat & Area Optimization</h3>
+                            </div>
+                            <div class="card-body" id="insights-beats-container" style="padding-top: 1rem; display: flex; flex-direction: column; gap: 1rem;">
+                                <!-- Dynamically populated by JS -->
+                            </div>
+                        </div>
+
+                        <!-- 3. Product Performance Recommendations -->
+                        <div class="dashboard-card">
+                            <div class="card-header-main" style="border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 0.75rem;">
+                                <h3><i data-lucide="package" class="text-emerald" style="vertical-align: middle; margin-right: 0.5rem;"></i> Product Type Insights</h3>
+                            </div>
+                            <div class="card-body" id="insights-products-container" style="padding-top: 1rem; display: flex; flex-direction: column; gap: 1rem;">
+                                <!-- Dynamically populated by JS -->
+                            </div>
+                        </div>
+
+                        <!-- 4. Health & Billing Audit Warning Center -->
+                        <div class="dashboard-card" style="grid-column: span 2;">
+                            <div class="card-header-main" style="border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 0.75rem;">
+                                <h3><i data-lucide="alert-triangle" class="text-rose" style="vertical-align: middle; margin-right: 0.5rem;"></i> Discrepancy & Audit Warning Center</h3>
+                            </div>
+                            <div class="card-body" id="insights-audit-container" style="padding-top: 1rem; display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                                <!-- Dynamically populated by JS -->
+                            </div>
+                        </div>
+
+                    </div>
+                </section>
+                
+            </div>
+        </main>
+    </div>
+
+    <!-- Edit Record Modal -->
+    <div class="modal" id="edit-record-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Parsed Record</h3>
+                <button class="modal-close" id="btn-modal-close">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-record-form">
+                    <input type="hidden" id="edit-rec-index">
+                    
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="edit-rec-date">Date</label>
+                            <input type="date" id="edit-rec-date" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-rec-sender">Sales Rep Name</label>
+                            <input type="text" id="edit-rec-sender" class="form-control" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="edit-rec-beat">Beat/Route</label>
+                            <input type="text" id="edit-rec-beat" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-rec-distributor">Distributor Name</label>
+                            <input type="text" id="edit-rec-distributor" class="form-control">
+                        </div>
+                    </div>
+                    
+                    <div class="form-grid" style="grid-template-columns: repeat(3, 1fr);">
+                        <div class="form-group">
+                            <label for="edit-rec-bottles">Bottles</label>
+                            <input type="number" id="edit-rec-bottles" class="form-control" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-rec-pouches">Pouches</label>
+                            <input type="number" id="edit-rec-pouches" class="form-control" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-rec-loose">Loose Sales</label>
+                            <input type="number" id="edit-rec-loose" class="form-control" min="0" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="edit-rec-reported-value">SR Reported Value (₹)</label>
+                            <input type="number" id="edit-rec-reported-value" class="form-control" min="0" step="0.01" required>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="btn-edit-cancel">Cancel</button>
+                <button class="btn btn-primary" id="btn-edit-save">Apply Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core App Logic Script -->
+    <script src="app.js"></script>
+</body>
+</html>
