@@ -2996,7 +2996,7 @@ function syncSingleRepToSupabase(name, status) {
     
     if (!url || !key) return; // No cloud config saved
     
-    const endpoint = `${url}/rest/v1/sales_reps`;
+    const endpoint = `${url}/rest/v1/sales_reps?on_conflict=name`;
     
     fetch(endpoint, {
         method: 'POST',
@@ -3041,7 +3041,7 @@ function syncAllRepsToSupabase() {
         status: state.salesRepsList[name] || 'Active'
     }));
     
-    const endpoint = `${url}/rest/v1/sales_reps`;
+    const endpoint = `${url}/rest/v1/sales_reps?on_conflict=name`;
     
     fetch(endpoint, {
         method: 'POST',
