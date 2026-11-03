@@ -55,6 +55,10 @@
                     <i data-lucide="building-2"></i>
                     <span>Distributor Hub</span>
                 </button>
+                <button class="nav-item" data-tab="calls">
+                    <i data-lucide="phone-call"></i>
+                    <span>Distributor Calls & CRM</span>
+                </button>
                 <button class="nav-item" data-tab="beats">
                     <i data-lucide="map-pin"></i>
                     <span>Beat WoW Analysis</span>
@@ -195,8 +199,8 @@
                     </div>
 
                     <!-- Dashboard Graphs -->
-                    <div class="charts-grid">
-                        <div class="dashboard-card" style="grid-column: span 2;">
+                    <div class="charts-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                        <div class="dashboard-card">
                             <div class="card-header-main">
                                 <h3>Sales Trend (By Category)</h3>
                                 <div class="filter-group">
@@ -211,6 +215,21 @@
                             </div>
                             <div class="chart-container">
                                 <canvas id="chart-sales-trend"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="dashboard-card">
+                            <div class="card-header-main">
+                                <h3>Sales Rep Comparison (By Product Type)</h3>
+                                <div class="filter-group">
+                                    <select id="rep-comparison-chart-metric" class="filter-select">
+                                        <option value="volume" selected>Volume (Units)</option>
+                                        <option value="value">Value (Revenue)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="chart-rep-comparison"></canvas>
                             </div>
                         </div>
                     </div>
@@ -475,7 +494,146 @@
                     </div>
                 </section>
 
-                <!-- 4. BEAT WOW ANALYSIS -->
+                <!-- 3C. DISTRIBUTOR CALLS & CRM HUB -->
+                <section class="tab-pane" id="pane-calls">
+                    <!-- Top Action & Overview Bar -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+                        <div>
+                            <h2 style="font-size: 1.4rem; font-weight: 700; color: var(--text-primary);">Distributor Calls & CRM Hub</h2>
+                            <p style="color: var(--text-muted); font-size: 0.85rem;">Track sales rep field visits, new distributor leads, head office calls, and monthly targets</p>
+                        </div>
+                        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                            <button class="btn btn-secondary btn-sm" id="btn-sync-calls-cloud" style="display: flex; align-items: center; gap: 0.35rem;">
+                                <i data-lucide="refresh-cw" id="icon-calls-sync"></i>
+                                <span>Sync Cloud Calls</span>
+                            </button>
+                            <button class="btn btn-secondary btn-sm" id="btn-open-set-targets" style="display: flex; align-items: center; gap: 0.35rem;">
+                                <i data-lucide="target"></i>
+                                <span>Set Rep Targets</span>
+                            </button>
+                            <button class="btn btn-primary btn-sm" id="btn-open-assign-call" style="display: flex; align-items: center; gap: 0.35rem;">
+                                <i data-lucide="plus-circle"></i>
+                                <span>+ Log / Assign Call</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- KPI Metric Counters -->
+                    <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-bottom: 1.5rem;">
+                        <div class="stat-card indigo-border">
+                            <div class="stat-icon-wrapper" style="background: rgba(99, 102, 241, 0.1); color: var(--accent-indigo);">
+                                <i data-lucide="phone-call"></i>
+                            </div>
+                            <div class="stat-value" id="kpi-total-calls">0</div>
+                            <div class="stat-label">Total Calls Logged</div>
+                            <div class="stat-indicator trend-neutral" id="kpi-calls-sub">0 Field &bull; 0 Head Office</div>
+                        </div>
+
+                        <div class="stat-card cyan-border">
+                            <div class="stat-icon-wrapper" style="background: rgba(6, 182, 212, 0.1); color: var(--accent-cyan);">
+                                <i data-lucide="building-2"></i>
+                            </div>
+                            <div class="stat-value" id="kpi-new-leads">0</div>
+                            <div class="stat-label">New Distributor Leads</div>
+                            <div class="stat-indicator trend-up" id="kpi-leads-sub">In Pitch & Negotiation</div>
+                        </div>
+
+                        <div class="stat-card rose-border">
+                            <div class="stat-icon-wrapper" style="background: rgba(244, 63, 94, 0.1); color: var(--accent-rose);">
+                                <i data-lucide="clock"></i>
+                            </div>
+                            <div class="stat-value" id="kpi-pending-followups">0</div>
+                            <div class="stat-label">Pending / Due Follow-ups</div>
+                            <div class="stat-indicator trend-down" id="kpi-followups-sub">0 Overdue &bull; 0 Due Today</div>
+                        </div>
+
+                        <div class="stat-card emerald-border">
+                            <div class="stat-icon-wrapper" style="background: rgba(16, 185, 129, 0.1); color: var(--accent-emerald);">
+                                <i data-lucide="badge-check"></i>
+                            </div>
+                            <div class="stat-value" id="kpi-converted-calls">0</div>
+                            <div class="stat-label">Deals Won / Converted</div>
+                            <div class="stat-indicator trend-up" id="kpi-converted-sub">Onboarded Distributors</div>
+                        </div>
+                    </div>
+
+                    <!-- Rep Monthly Targets & Performance Tracker Card -->
+                    <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+                        <div class="card-header-main" style="flex-wrap: wrap; gap: 0.75rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <i data-lucide="target" style="color: var(--accent-indigo); width: 20px; height: 20px;"></i>
+                                <h3>Monthly Call Targets & Progress</h3>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 0.8rem; color: var(--text-muted);">Active Month:</span>
+                                <input type="month" id="calls-target-month-select" class="filter-input" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">
+                            </div>
+                        </div>
+                        <div id="reps-targets-progress-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                            <!-- Dynamic rep target progress cards -->
+                        </div>
+                    </div>
+
+                    <!-- Filters & Calls Table Card -->
+                    <div class="dashboard-card">
+                        <div class="card-header-main" style="flex-wrap: wrap; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <i data-lucide="list-filter" style="color: var(--accent-cyan); width: 20px; height: 20px;"></i>
+                                <h3>Distributor Calls Directory</h3>
+                                <span class="badge" id="calls-count-badge" style="background: rgba(99, 102, 241, 0.15); color: var(--accent-indigo); border: 1px solid rgba(99, 102, 241, 0.3); padding: 2px 8px; border-radius: 12px; font-size: 0.75rem;">0 Calls</span>
+                            </div>
+                            
+                            <!-- Search & Dropdown Filters -->
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                                <input type="text" id="call-filter-search" class="filter-input" placeholder="Search distributor, contact, phone, beat..." style="min-width: 200px;">
+                                <select id="call-filter-rep" class="filter-select">
+                                    <option value="all">All Callers / Reps</option>
+                                    <option value="Head Office">Head Office</option>
+                                </select>
+                                <select id="call-filter-type" class="filter-select">
+                                    <option value="all">All Call Types</option>
+                                    <option value="New Distributor Pitch">New Distributor Pitch</option>
+                                    <option value="Existing Distributor Visit">Existing Distributor Visit</option>
+                                    <option value="Order Booking / Enquiry">Order Booking / Enquiry</option>
+                                    <option value="Payment / Collection Follow-up">Payment Follow-up</option>
+                                    <option value="Sampling / Product Demo">Sampling / Demo</option>
+                                    <option value="Head Office Direct Call">Head Office Direct Call</option>
+                                </select>
+                                <select id="call-filter-status" class="filter-select">
+                                    <option value="all">All Statuses</option>
+                                    <option value="Lead / Initial Discussion">Lead / First Discussion</option>
+                                    <option value="Samples Given">Samples Given</option>
+                                    <option value="Follow-up Required">Follow-up Required</option>
+                                    <option value="Order Won / Converted">Order Won / Converted</option>
+                                    <option value="Not Interested / Price Issue">Not Interested</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Calls Directory Table -->
+                        <div class="table-responsive">
+                            <table class="custom-table" id="calls-directory-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date & Time</th>
+                                        <th>Caller / Rep</th>
+                                        <th>Distributor & Route</th>
+                                        <th>Contact Person</th>
+                                        <th>Call Type</th>
+                                        <th>Status</th>
+                                        <th>Follow-up Due</th>
+                                        <th>Visiting Card</th>
+                                        <th>Notes & Remarks</th>
+                                        <th style="width: 140px; text-align: right;">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Dynamic Calls Rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
                 <section class="tab-pane" id="pane-beats">
                     <div class="dashboard-card" style="margin-bottom: 1.5rem;">
                         <div class="card-header-main">
@@ -910,6 +1068,276 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" id="btn-edit-cancel">Cancel</button>
                 <button class="btn btn-primary" id="btn-edit-save">Apply Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 1. Log / Assign Call Modal -->
+    <div class="modal" id="modal-assign-call">
+        <div class="modal-content" style="max-width: 650px;">
+            <div class="modal-header">
+                <h3 id="assign-modal-title">Log / Assign Distributor Call</h3>
+                <button class="modal-close" onclick="closeAssignModal()">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="form-assign-call">
+                    <input type="hidden" id="assign-call-id">
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="assign-call-rep">Caller / Assign To</label>
+                            <select id="assign-call-rep" class="form-control" required>
+                                <option value="Head Office">Head Office (Management)</option>
+                                <!-- Dynamic Sales Reps list -->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="assign-call-type">Call / Visit Type</label>
+                            <select id="assign-call-type" class="form-control" required>
+                                <option value="New Distributor Pitch" selected>New Distributor Pitch / Lead</option>
+                                <option value="Existing Distributor Visit">Existing Distributor Visit</option>
+                                <option value="Order Booking / Enquiry">Order Booking / Enquiry</option>
+                                <option value="Payment / Collection Follow-up">Payment Follow-up</option>
+                                <option value="Sampling / Product Demo">Sampling / Demo</option>
+                                <option value="Head Office Direct Call">Head Office Direct Call</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="assign-call-date">Call / Visit Date</label>
+                            <input type="date" id="assign-call-date" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="assign-call-time">Call Time</label>
+                            <input type="time" id="assign-call-time" class="form-control" required value="11:00">
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="assign-call-distributor">Distributor / Outlet Name</label>
+                            <input type="text" id="assign-call-distributor" class="form-control" placeholder="e.g. Mahadev Traders" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="assign-call-beat">Route / City / Location</label>
+                            <input type="text" id="assign-call-beat" class="form-control" placeholder="e.g. Adajan Road, Surat" required>
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="assign-call-contact">Contact Person & Designation</label>
+                            <input type="text" id="assign-call-contact" class="form-control" placeholder="e.g. Rajesh Bhai - Owner" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="assign-call-phone">Contact Mobile Number</label>
+                            <input type="tel" id="assign-call-phone" class="form-control" placeholder="9876543210" required>
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="assign-call-status">Call Status</label>
+                            <select id="assign-call-status" class="form-control">
+                                <option value="Lead / Initial Discussion" selected>Lead / First Discussion</option>
+                                <option value="Samples Given">Samples Given</option>
+                                <option value="Follow-up Required">Follow-up Required</option>
+                                <option value="Order Won / Converted">Order Won / Converted</option>
+                                <option value="Not Interested / Price Issue">Not Interested</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="assign-call-value">Potential Value / Target (₹)</label>
+                            <input type="number" id="assign-call-value" class="form-control" min="0" placeholder="e.g. 50000">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="assign-call-notes">Meeting Notes / Objectives / Remarks</label>
+                        <textarea id="assign-call-notes" class="form-control" rows="3" placeholder="Key discussion points, product interest, competitor brands, pricing terms..." required style="resize: vertical;"></textarea>
+                    </div>
+
+                    <div style="background: rgba(15, 23, 42, 0.4); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0.85rem; margin-bottom: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="assign-call-followup-check" style="accent-color: var(--accent-indigo); width: 16px; height: 16px;">
+                            <span><i data-lucide="calendar-plus" style="width: 14px; height: 14px; vertical-align: middle;"></i> Schedule Follow-up</span>
+                        </label>
+                        <div id="assign-followup-inputs" class="hidden" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.5rem;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label for="assign-call-followup-date" style="font-size: 0.75rem;">Follow-up Date</label>
+                                <input type="date" id="assign-call-followup-date" class="form-control">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label for="assign-call-followup-time" style="font-size: 0.75rem;">Follow-up Time</label>
+                                <input type="time" id="assign-call-followup-time" class="form-control" value="11:00">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Visiting Card / PDF Attachment -->
+                    <div class="form-group">
+                        <label>Visiting Card / Photo / PDF Document</label>
+                        <input type="file" id="assign-call-file" accept="image/*,application/pdf" class="form-control" style="padding: 0.4rem;">
+                        <small style="color: var(--text-muted); font-size: 0.75rem; margin-top: 0.25rem;">Optional: attach visiting card photo or brochure</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeAssignModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btn-save-assigned-call">Save Call Details</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Update Follow-up & Remarks Modal -->
+    <div class="modal" id="modal-followup-call">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>Follow-up Updates & Remarks</h3>
+                <button class="modal-close" onclick="closeFollowupModal()">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="followup-call-id">
+
+                <!-- Header Call Info Box -->
+                <div style="background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.25rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                        <div>
+                            <h4 id="followup-info-distributor" style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary);">-</h4>
+                            <p id="followup-info-location" style="font-size: 0.8rem; color: var(--text-muted);">-</p>
+                        </div>
+                        <span id="followup-info-status" class="badge" style="background: rgba(99, 102, 241, 0.15); color: var(--accent-indigo); padding: 3px 10px; border-radius: 12px; font-size: 0.75rem;">-</span>
+                    </div>
+                    <div style="display: flex; gap: 1rem; font-size: 0.8rem; color: var(--text-secondary); flex-wrap: wrap;">
+                        <div><strong>Contact:</strong> <span id="followup-info-contact">-</span></div>
+                        <div><strong>Phone:</strong> <span id="followup-info-phone">-</span></div>
+                        <div><strong>Caller:</strong> <span id="followup-info-rep">-</span></div>
+                    </div>
+                </div>
+
+                <!-- Existing Remarks History / Thread -->
+                <div class="form-group">
+                    <label>Remarks & Follow-up History</label>
+                    <div id="followup-history-container" style="background: rgba(8, 12, 20, 0.6); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0.85rem; max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.825rem;">
+                        <!-- Dynamic remarks timeline -->
+                    </div>
+                </div>
+
+                <!-- Add New Follow-up Remark -->
+                <div class="form-group">
+                    <label for="followup-new-remark">Add New Follow-up Remark / Update</label>
+                    <textarea id="followup-new-remark" class="form-control" rows="3" placeholder="Enter notes from recent call/discussion (e.g. Spoke to owner, agreed on 50 boxes order, send sample on Thursday...)" style="resize: vertical;"></textarea>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="followup-update-status">Update Stage / Status</label>
+                        <select id="followup-update-status" class="form-control">
+                            <option value="Lead / Initial Discussion">Lead / First Discussion</option>
+                            <option value="Samples Given">Samples Given</option>
+                            <option value="Follow-up Required">Follow-up Required</option>
+                            <option value="Order Won / Converted">Order Won / Converted</option>
+                            <option value="Not Interested / Price Issue">Not Interested</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="followup-update-value">Order / Est. Value (₹)</label>
+                        <input type="number" id="followup-update-value" class="form-control" min="0" placeholder="₹">
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="followup-update-date">Next Follow-up Date</label>
+                        <input type="date" id="followup-update-date" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="followup-update-time">Next Follow-up Time</label>
+                        <input type="time" id="followup-update-time" class="form-control">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeFollowupModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btn-save-followup-update">Save Follow-up Update</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Set Monthly Targets Modal -->
+    <div class="modal" id="modal-set-targets">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>Set Sales Rep Monthly Targets</h3>
+                <button class="modal-close" onclick="closeSetTargetsModal()">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="form-set-targets">
+                    <div class="form-group">
+                        <label for="target-rep-select">Select Sales Representative</label>
+                        <select id="target-rep-select" class="form-control" required>
+                            <!-- Dynamic active reps -->
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="target-month-input">Target Month</label>
+                        <input type="month" id="target-month-input" class="form-control" required>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="target-calls-input">Target Calls / Visits</label>
+                            <input type="number" id="target-calls-input" class="form-control" min="1" placeholder="e.g. 25" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="target-leads-input">Target New Distributors</label>
+                            <input type="number" id="target-leads-input" class="form-control" min="0" placeholder="e.g. 5" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="target-revenue-input">Target Revenue (₹)</label>
+                        <input type="number" id="target-revenue-input" class="form-control" min="0" placeholder="e.g. 150000">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeSetTargetsModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btn-save-target">Save Target</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Visiting Card & Attachment Viewer Modal -->
+    <div class="modal" id="modal-view-attachment">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3 id="attachment-modal-title">Visiting Card / Document</h3>
+                <button class="modal-close" onclick="closeAttachmentModal()">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body" style="text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px;">
+                <img id="attachment-modal-img" src="" alt="Visiting Card" style="max-width: 100%; max-height: 70vh; border-radius: var(--radius-md); box-shadow: var(--shadow-md); display: none;">
+                <div id="attachment-modal-pdf" style="display: none; padding: 2rem; flex-direction: column; align-items: center; gap: 1rem;">
+                    <i data-lucide="file-text" style="width: 64px; height: 64px; color: var(--accent-rose);"></i>
+                    <p id="attachment-modal-pdf-name" style="font-weight: 600; color: var(--text-primary); font-size: 1.1rem;">document.pdf</p>
+                    <a id="attachment-modal-pdf-link" href="#" target="_blank" class="btn btn-primary">
+                        <i data-lucide="download"></i> Download / View PDF
+                    </a>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeAttachmentModal()">Close</button>
             </div>
         </div>
     </div>

@@ -36,6 +36,15 @@ const state = {
     parsedPreview: [], // Holds temporarily parsed records before confirming
     selectedRep: null, // Holds currently selected sales rep for detailed view
     selectedDistributor: null, // Holds currently selected distributor for detailed view
+    calls: [], // Holds distributor calls & field visits
+    targets: [], // Holds sales rep monthly targets
+    callFilters: {
+        search: '',
+        rep: 'all',
+        type: 'all',
+        status: 'all'
+    },
+    activeAttachmentCall: null,
     charts: {
         salesTrend: null,
         repShare: null,
@@ -43,13 +52,14 @@ const state = {
         distTrend: null,
         beatComparison: null,
         momRevenue: null,
-        momCategory: null
+        momCategory: null,
+        repComparison: null
     }
 };
 
 // Database Configurations
 const DB_NAME = 'SRSalesMonitorDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 let db = null;
 
 // Initialize App
@@ -58,8 +68,10 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(() => {
             loadSettings();
             loadPhoneMappings();
-            loadSalesRepsList();
-            return loadReportsFromDb();
+            return loadSalesRepsList()
+                .then(() => loadReportsFromDb())
+                .then(() => loadCallsFromDb())
+                .then(() => loadTargetsFromDb());
         })
         .then(() => {
             initUI();
@@ -99,6 +111,23 @@ function initDatabase() {
             // Create store for settings
             if (!database.objectStoreNames.contains('settings')) {
                 database.createObjectStore('settings', { keyPath: 'key' });
+            }
+
+            // Create store for distributor calls & leads
+            if (!database.objectStoreNames.contains('calls')) {
+                const callsStore = database.createObjectStore('calls', { keyPath: 'id', autoIncrement: true });
+                callsStore.createIndex('date', 'date', { unique: false });
+                callsStore.createIndex('sender', 'sender', { unique: false });
+                callsStore.createIndex('distributor', 'distributor', { unique: false });
+                callsStore.createIndex('status', 'status', { unique: false });
+                callsStore.createIndex('followup_date', 'followup_date', { unique: false });
+            }
+
+            // Create store for sales targets
+            if (!database.objectStoreNames.contains('targets')) {
+                const targetsStore = database.createObjectStore('targets', { keyPath: 'id', autoIncrement: true });
+                targetsStore.createIndex('rep_name', 'rep_name', { unique: false });
+                targetsStore.createIndex('month', 'month', { unique: false });
             }
         };
     });
@@ -211,18 +240,42 @@ function lookupPhoneMapping(phoneStr) {
 
 function resolveRegisteredRepName(name) {
     if (name === null || name === undefined) return 'Unknown SR';
-    const strName = String(name);
+    const strName = String(name).trim();
     const clean = strName.toLowerCase();
     
-    // Normalize to digits for phone matching
-    const digits = strName.replace(/[^\d]/g, '');
+    // 1. Try to resolve via phone mapping first
+    const mappedName = lookupPhoneMapping(strName);
+    if (mappedName && mappedName !== strName) {
+        return resolveRegisteredRepName(mappedName);
+    }
     
-    if (clean.includes('jignesh') || clean.includes('vadodariya') || (digits.length >= 10 && digits.endsWith('9904022105'))) return 'Jignesh Vadodariya (Rajkot)';
-    if (clean.includes('bipin') || (digits.length >= 10 && digits.endsWith('8866730068'))) return 'Bipin (AHM)';
-    if (clean.includes('kamini') || (digits.length >= 10 && digits.endsWith('7777991045'))) return 'Kamini (Surat)';
-    if (clean.includes('krish') || clean.includes('baroda') || (digits.length >= 10 && digits.endsWith('9662666884'))) return 'Krish (Baroda)';
-    if (clean.includes('krunal') || (digits.length >= 10 && digits.endsWith('9033995424'))) return 'Krunal (Vapi)';
-    if (clean.includes('prakash') || (digits.length >= 10 && digits.endsWith('9408326006'))) return 'Prakash (Vapi)';
+    // 2. Try to match against the sales reps registry list keys
+    if (state.salesRepsList) {
+        const reps = Object.keys(state.salesRepsList);
+        for (const rep of reps) {
+            const repLower = rep.toLowerCase();
+            if (clean === repLower || repLower.includes(clean) || clean.includes(repLower)) {
+                return rep;
+            }
+            
+            const repFirstWord = repLower.split(/[ (]/)[0];
+            const cleanFirstWord = clean.split(/[ (]/)[0];
+            if (repFirstWord && cleanFirstWord && repFirstWord === cleanFirstWord) {
+                return rep;
+            }
+        }
+    }
+    
+    // 3. Fallback to raw phone digits matching if not resolved
+    const digits = strName.replace(/[^\d]/g, '');
+    if (digits.length >= 10) {
+        if (digits.endsWith('9904022105')) return 'Jignesh Vadodariya (Rajkot)';
+        if (digits.endsWith('8866730068')) return 'Bipin (AHM)';
+        if (digits.endsWith('7777991045')) return 'Kamini (Surat)';
+        if (digits.endsWith('9662666884')) return 'Krish (Baroda)';
+        if (digits.endsWith('9033995424') || digits.endsWith('903395424')) return 'Krunal (Vapi)';
+        if (digits.endsWith('9408326006')) return 'Prakash (Vapi)';
+    }
     
     return strName;
 }
@@ -328,14 +381,124 @@ function deleteReportFromDb(id) {
     });
 }
 
+// --- Calls & Targets Database Handlers ---
+function loadCallsFromDb() {
+    if (!db) return Promise.reject('No database connection');
+    return new Promise((resolve, reject) => {
+        try {
+            const tx = db.transaction('calls', 'readonly');
+            const store = tx.objectStore('calls');
+            const req = store.getAll();
+            req.onsuccess = (e) => {
+                state.calls = e.target.result || [];
+                state.calls.sort((a, b) => {
+                    const dtA = (a.date || '') + ' ' + (a.time || '');
+                    const dtB = (b.date || '') + ' ' + (b.time || '');
+                    return dtB.localeCompare(dtA);
+                });
+                resolve();
+            };
+            req.onerror = (e) => reject(e.target.error);
+        } catch (err) {
+            console.warn('Error reading calls store:', err);
+            state.calls = [];
+            resolve();
+        }
+    });
+}
+
+function saveCallsToDb(records) {
+    if (!db) return Promise.reject('No database connection');
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('calls', 'readwrite');
+        const store = tx.objectStore('calls');
+        const list = Array.isArray(records) ? records : [records];
+        list.forEach(rec => store.put(rec));
+        tx.oncomplete = () => loadCallsFromDb().then(resolve);
+        tx.onerror = (e) => reject(e.target.error);
+    });
+}
+
+function updateCallInDb(id, updates) {
+    if (!db) return Promise.reject('No database connection');
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('calls', 'readwrite');
+        const store = tx.objectStore('calls');
+        const req = store.get(id);
+        req.onsuccess = (e) => {
+            const call = e.target.result;
+            if (!call) return reject('Call not found');
+            Object.assign(call, updates);
+            store.put(call);
+        };
+        tx.oncomplete = () => loadCallsFromDb().then(resolve);
+        tx.onerror = (e) => reject(e.target.error);
+    });
+}
+
+function deleteCallFromDb(id) {
+    if (!db) return Promise.reject('No database connection');
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('calls', 'readwrite');
+        const store = tx.objectStore('calls');
+        store.delete(id);
+        tx.oncomplete = () => loadCallsFromDb().then(resolve);
+        tx.onerror = (e) => reject(e.target.error);
+    });
+}
+
+function loadTargetsFromDb() {
+    if (!db) return Promise.reject('No database connection');
+    return new Promise((resolve, reject) => {
+        try {
+            const tx = db.transaction('targets', 'readonly');
+            const store = tx.objectStore('targets');
+            const req = store.getAll();
+            req.onsuccess = (e) => {
+                state.targets = e.target.result || [];
+                resolve();
+            };
+            req.onerror = (e) => reject(e.target.error);
+        } catch (err) {
+            console.warn('Error reading targets store:', err);
+            state.targets = [];
+            resolve();
+        }
+    });
+}
+
+function saveTargetToDb(target) {
+    if (!db) return Promise.reject('No database connection');
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('targets', 'readwrite');
+        const store = tx.objectStore('targets');
+        
+        const req = store.getAll();
+        req.onsuccess = () => {
+            const existing = (req.result || []).find(t => t.rep_name === target.rep_name && t.month === target.month);
+            if (existing) {
+                target.id = existing.id;
+            }
+            store.put(target);
+        };
+        tx.oncomplete = () => loadTargetsFromDb().then(resolve);
+        tx.onerror = (e) => reject(e.target.error);
+    });
+}
+
 function clearDatabase() {
     return new Promise((resolve, reject) => {
-        const tx = db.transaction(['reports', 'settings'], 'readwrite');
-        tx.objectStore('reports').clear();
-        tx.objectStore('settings').clear();
+        const stores = ['reports', 'settings'];
+        if (db.objectStoreNames.contains('calls')) stores.push('calls');
+        if (db.objectStoreNames.contains('targets')) stores.push('targets');
+        
+        const tx = db.transaction(stores, 'readwrite');
+        stores.forEach(s => tx.objectStore(s).clear());
         
         tx.oncomplete = () => {
             state.reports = [];
+            state.calls = [];
+            state.targets = [];
             resolve();
         };
         tx.onerror = (e) => reject(e.target.error);
@@ -797,6 +960,11 @@ function initUI() {
         updateDashboard();
     });
     
+    // Metric Selector in Rep Comparison Chart
+    document.getElementById('rep-comparison-chart-metric').addEventListener('change', () => {
+        updateDashboard(); // Simply refresh dashboard to redraw with the new metric
+    });
+    
     // 3. File Dropzone & Uploader Setup
     const dropzone = document.getElementById('report-dropzone');
     const fileUploader = document.getElementById('file-uploader');
@@ -882,6 +1050,63 @@ function initUI() {
     
     document.getElementById('btn-sync-reps-cloud').addEventListener('click', syncAllRepsToSupabase);
     
+    // Calls & CRM Event Listeners
+    const btnOpenAssign = document.getElementById('btn-open-assign-call');
+    if (btnOpenAssign) btnOpenAssign.addEventListener('click', () => openAssignModal());
+
+    const btnOpenSetTargets = document.getElementById('btn-open-set-targets');
+    if (btnOpenSetTargets) btnOpenSetTargets.addEventListener('click', () => openSetTargetsModal());
+
+    const btnSyncCalls = document.getElementById('btn-sync-calls-cloud');
+    if (btnSyncCalls) btnSyncCalls.addEventListener('click', () => syncCloudCalls());
+
+    const btnSaveAssigned = document.getElementById('btn-save-assigned-call');
+    if (btnSaveAssigned) btnSaveAssigned.addEventListener('click', () => saveAssignedCall());
+
+    const btnSaveFollowup = document.getElementById('btn-save-followup-update');
+    if (btnSaveFollowup) btnSaveFollowup.addEventListener('click', () => saveFollowupUpdate());
+
+    const btnSaveTarget = document.getElementById('btn-save-target');
+    if (btnSaveTarget) btnSaveTarget.addEventListener('click', () => saveTarget());
+
+    const followupCheck = document.getElementById('assign-call-followup-check');
+    if (followupCheck) {
+        followupCheck.addEventListener('change', () => {
+            const container = document.getElementById('assign-followup-inputs');
+            if (followupCheck.checked) container.classList.remove('hidden');
+            else container.classList.add('hidden');
+        });
+    }
+
+    const searchFilter = document.getElementById('call-filter-search');
+    if (searchFilter) searchFilter.addEventListener('input', () => {
+        state.callFilters.search = searchFilter.value.trim().toLowerCase();
+        renderCallsTable();
+    });
+
+    const repFilter = document.getElementById('call-filter-rep');
+    if (repFilter) repFilter.addEventListener('change', () => {
+        state.callFilters.rep = repFilter.value;
+        renderCallsTable();
+    });
+
+    const typeFilter = document.getElementById('call-filter-type');
+    if (typeFilter) typeFilter.addEventListener('change', () => {
+        state.callFilters.type = typeFilter.value;
+        renderCallsTable();
+    });
+
+    const statusFilter = document.getElementById('call-filter-status');
+    if (statusFilter) statusFilter.addEventListener('change', () => {
+        state.callFilters.status = statusFilter.value;
+        renderCallsTable();
+    });
+
+    const targetMonthSelect = document.getElementById('calls-target-month-select');
+    if (targetMonthSelect) targetMonthSelect.addEventListener('change', () => {
+        renderTargetsProgress();
+    });
+
     // Refresh Insights button
     const btnRefresh = document.getElementById('btn-refresh-insights');
     if (btnRefresh) {
@@ -919,6 +1144,7 @@ function switchTab(tabName) {
         upload: 'Extract & Upload Hub',
         reps: 'Sales Representative Performance',
         distributors: 'Distributors Supply Hub',
+        calls: 'Distributor Calls & CRM Hub',
         beats: 'Beat Week-on-Week Analysis',
         trends: 'Month-on-Month trends',
         insights: 'Sales Intelligence & Smart Insights',
@@ -928,9 +1154,9 @@ function switchTab(tabName) {
     document.getElementById('main-title').textContent = titleText[tabName] || 'Workspace';
     document.getElementById('tab-indicator').textContent = tabName.toUpperCase();
     
-    // Hide global filters in tabs where it doesn't make sense (like upload, settings, insights)
+    // Hide global filters in tabs where it doesn't make sense (like upload, settings, insights, calls)
     const filters = document.getElementById('global-filters');
-    if (tabName === 'upload' || tabName === 'settings' || tabName === 'insights') {
+    if (tabName === 'upload' || tabName === 'settings' || tabName === 'insights' || tabName === 'calls') {
         filters.classList.add('hidden');
     } else {
         filters.classList.remove('hidden');
@@ -943,6 +1169,8 @@ function switchTab(tabName) {
         renderRepsLeaderboard();
     } else if (tabName === 'distributors') {
         renderDistributorsLeaderboard();
+    } else if (tabName === 'calls') {
+        renderCallsHub();
     } else if (tabName === 'beats') {
         renderBeatsWoWFilters();
     } else if (tabName === 'trends') {
@@ -1203,6 +1431,7 @@ function updateDashboard() {
     
     // Render charts (Sales Rep Leaderboard doughnut chart is removed)
     renderSalesTrendChart(filtered);
+    renderRepComparisonChart(filtered);
     
     // Render recent reports table (safely guarded)
     renderRecentReportsTable(filtered);
@@ -1216,15 +1445,8 @@ function populateFilterDropdowns() {
     const currentRep = repSelect.value;
     const currentMonth = monthSelect.value;
     
-    // 1. Populate Sales Reps (Strictly only the 6 registered ones)
-    const REGISTERED_REPS = [
-        'Jignesh Vadodariya (Rajkot)',
-        'Bipin (AHM)',
-        'Kamini (Surat)',
-        'Krish (Baroda)',
-        'Krunal (Vapi)',
-        'Prakash (Vapi)'
-    ];
+    // 1. Populate Sales Reps dynamically from registry
+    const REGISTERED_REPS = Object.keys(state.salesRepsList).sort();
     
     repSelect.innerHTML = '<option value="all">All Sales Reps</option>';
     REGISTERED_REPS.forEach(rep => {
@@ -1260,6 +1482,56 @@ function populateFilterDropdowns() {
         if (m === currentMonth) opt.selected = true;
         monthSelect.appendChild(opt);
     });
+
+    // 3. Populate Calls Rep Filter & Modals Dropdowns
+    const callRepFilter = document.getElementById('call-filter-rep');
+    const assignRepSelect = document.getElementById('assign-call-rep');
+    const targetRepSelect = document.getElementById('target-rep-select');
+
+    if (callRepFilter) {
+        const cur = callRepFilter.value;
+        callRepFilter.innerHTML = '<option value="all">All Callers / Reps</option><option value="Head Office">Head Office</option>';
+        REGISTERED_REPS.forEach(rep => {
+            const opt = document.createElement('option');
+            opt.value = rep;
+            opt.textContent = rep;
+            if (rep === cur) opt.selected = true;
+            callRepFilter.appendChild(opt);
+        });
+    }
+
+    if (assignRepSelect) {
+        const cur = assignRepSelect.value;
+        assignRepSelect.innerHTML = '<option value="Head Office">Head Office (Management)</option>';
+        REGISTERED_REPS.forEach(rep => {
+            const opt = document.createElement('option');
+            opt.value = rep;
+            opt.textContent = rep;
+            if (rep === cur) opt.selected = true;
+            assignRepSelect.appendChild(opt);
+        });
+    }
+
+    if (targetRepSelect) {
+        const cur = targetRepSelect.value;
+        targetRepSelect.innerHTML = '';
+        REGISTERED_REPS.forEach(rep => {
+            const opt = document.createElement('option');
+            opt.value = rep;
+            opt.textContent = rep;
+            if (rep === cur) opt.selected = true;
+            targetRepSelect.appendChild(opt);
+        });
+    }
+
+    // 4. Default Target Month Select to current month
+    const targetMonthSelect = document.getElementById('calls-target-month-select');
+    if (targetMonthSelect && !targetMonthSelect.value) {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        targetMonthSelect.value = `${y}-${m}`;
+    }
 }
 
 function updateWoWIndicator(element, change) {
@@ -1383,18 +1655,130 @@ function renderSalesTrendChart(filteredData = state.reports) {
     });
 }
 
+function renderRepComparisonChart(filtered) {
+    const metric = document.getElementById('rep-comparison-chart-metric').value || 'volume';
+    
+    // Get all registered Sales Representatives dynamically
+    const REPS = Object.keys(state.salesRepsList).sort();
+    
+    // Group and sum
+    const dataMap = {};
+    REPS.forEach(rep => {
+        dataMap[rep] = { bottles: 0, pouches: 0, loose: 0, valueB: 0, valueP: 0, valueL: 0 };
+    });
+    
+    filtered.forEach(r => {
+        const resolvedRep = resolveRegisteredRepName(r.sender);
+        if (dataMap[resolvedRep]) {
+            dataMap[resolvedRep].bottles += r.bottles;
+            dataMap[resolvedRep].pouches += r.pouches;
+            dataMap[resolvedRep].loose += r.loose;
+            
+            // Calculate pricing breakups
+            dataMap[resolvedRep].valueB += r.bottles * state.settings.prices.bottles;
+            dataMap[resolvedRep].valueP += r.pouches * state.settings.prices.pouches;
+            dataMap[resolvedRep].valueL += r.loose * state.settings.prices.loose;
+        }
+    });
+    
+    const labels = REPS;
+    let datasetBottles = [];
+    let datasetPouches = [];
+    let datasetLoose = [];
+    
+    if (metric === 'volume') {
+        datasetBottles = REPS.map(rep => dataMap[rep].bottles);
+        datasetPouches = REPS.map(rep => dataMap[rep].pouches);
+        datasetLoose = REPS.map(rep => dataMap[rep].loose);
+    } else {
+        datasetBottles = REPS.map(rep => dataMap[rep].valueB);
+        datasetPouches = REPS.map(rep => dataMap[rep].valueP);
+        datasetLoose = REPS.map(rep => dataMap[rep].valueL);
+    }
+    
+    const ctx = document.getElementById('chart-rep-comparison').getContext('2d');
+    if (state.charts.repComparison) {
+        state.charts.repComparison.destroy();
+    }
+    
+    state.charts.repComparison = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels.map(name => name.split(' ')[0]), // Short names for x-axis
+            datasets: [
+                {
+                    label: metric === 'volume' ? 'Bottles (Qty)' : 'Bottles (₹)',
+                    data: datasetBottles,
+                    backgroundColor: '#06b6d4',
+                    borderRadius: 4
+                },
+                {
+                    label: metric === 'volume' ? 'Pouches (Qty)' : 'Pouches (₹)',
+                    data: datasetPouches,
+                    backgroundColor: '#10b981',
+                    borderRadius: 4
+                },
+                {
+                    label: metric === 'volume' ? 'Loose (Qty)' : 'Loose (₹)',
+                    data: datasetLoose,
+                    backgroundColor: '#8b5cf6',
+                    borderRadius: 4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { color: '#94a3b8', font: { family: 'Inter', size: 11 } }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) label += ': ';
+                            if (metric === 'volume') {
+                                label += context.raw.toLocaleString('en-IN') + ' units';
+                            } else {
+                                label += '₹' + context.raw.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    stacked: true,
+                    ticks: { color: '#64748b', font: { family: 'Inter', size: 10 } },
+                    grid: { display: false }
+                },
+                y: {
+                    stacked: true,
+                    ticks: {
+                        color: '#64748b',
+                        font: { family: 'Inter', size: 10 },
+                        callback: function(value) {
+                            if (metric === 'volume') return value.toLocaleString('en-IN');
+                            if (value >= 100000) return '₹' + (value / 100000).toFixed(1) + 'L';
+                            if (value >= 1000) return '₹' + (value / 1000).toFixed(0) + 'k';
+                            return '₹' + value;
+                        }
+                    },
+                    grid: { color: 'rgba(255, 255, 255, 0.03)' }
+                }
+            }
+        }
+    });
+}
+
 function renderRepLeaderboardChart(filteredData = state.reports) {
     const ctx = document.getElementById('chart-rep-share').getContext('2d');
     if (state.charts.repShare) state.charts.repShare.destroy();
     
-    const REGISTERED_REPS = [
-        'Jignesh Vadodariya (Rajkot)',
-        'Bipin (AHM)',
-        'Kamini (Surat)',
-        'Krish (Baroda)',
-        'Krunal (Vapi)',
-        'Prakash (Vapi)'
-    ];
+    const REGISTERED_REPS = Object.keys(state.salesRepsList).sort();
     
     // Calculate rep sales value strictly for the 6 registered reps
     const repMap = new Map();
@@ -1503,15 +1887,8 @@ function renderRepsLeaderboard() {
     const tbody = document.querySelector('#rep-leaderboard-table tbody');
     tbody.innerHTML = '';
     
-    // Group records strictly for the 6 registered reps
-    const REGISTERED_REPS = [
-        'Jignesh Vadodariya (Rajkot)',
-        'Bipin (AHM)',
-        'Kamini (Surat)',
-        'Krish (Baroda)',
-        'Krunal (Vapi)',
-        'Prakash (Vapi)'
-    ];
+    // Group records dynamically for registered reps
+    const REGISTERED_REPS = Object.keys(state.salesRepsList).sort();
     
     const repMap = new Map();
     REGISTERED_REPS.forEach(rep => {
@@ -2909,19 +3286,26 @@ function syncCloudSubmissions() {
 }
 
 function loadSalesRepsList() {
-    if (!db) return;
-    const tx = db.transaction('settings', 'readonly');
-    const store = tx.objectStore('settings');
-    const req = store.get('sales_reps_list');
-    
-    req.onsuccess = (e) => {
-        if (e.target.result) {
-            state.salesRepsList = e.target.result.value || {};
-        } else {
-            saveSalesRepsListToDb();
-        }
-        renderSalesRepsRegistryTable();
-    };
+    if (!db) return Promise.reject('No database connection');
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('settings', 'readonly');
+        const store = tx.objectStore('settings');
+        const req = store.get('sales_reps_list');
+        
+        req.onsuccess = (e) => {
+            if (e.target.result) {
+                state.salesRepsList = e.target.result.value || {};
+                renderSalesRepsRegistryTable();
+                resolve();
+            } else {
+                saveSalesRepsListToDb().then(() => {
+                    renderSalesRepsRegistryTable();
+                    resolve();
+                });
+            }
+        };
+        req.onerror = (e) => reject(e.target.error);
+    });
 }
 
 function saveSalesRepsListToDb() {
@@ -2933,6 +3317,7 @@ function saveSalesRepsListToDb() {
         
         req.onsuccess = () => {
             renderSalesRepsRegistryTable();
+            populateFilterDropdowns();
             resolve();
         };
         req.onerror = (e) => reject(e.target.error);
@@ -3067,3 +3452,777 @@ function syncAllRepsToSupabase() {
         alert('Failed to sync reps: ' + err.message);
     });
 }
+
+// ==========================================
+// DISTRIBUTOR CALLS & CRM HUB MODULE
+// ==========================================
+
+function renderCallsHub() {
+    populateFilterDropdowns();
+
+    // 1. Calculate & Render KPI Cards
+    const totalCalls = state.calls.length;
+    let fieldCalls = 0;
+    let hoCalls = 0;
+    let newLeads = 0;
+    let pendingFollowups = 0;
+    let overdueCount = 0;
+    let dueTodayCount = 0;
+    let convertedCount = 0;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    state.calls.forEach(c => {
+        if (c.sender === 'Head Office') hoCalls++;
+        else fieldCalls++;
+
+        if (c.call_type === 'New Distributor Pitch' || (c.status && c.status.toLowerCase().includes('lead'))) {
+            newLeads++;
+        }
+
+        if (c.status === 'Order Won / Converted' || (c.status && c.status.toLowerCase().includes('converted'))) {
+            convertedCount++;
+        }
+
+        if (c.followup_date) {
+            if (c.status !== 'Order Won / Converted' && c.status !== 'Not Interested / Price Issue') {
+                pendingFollowups++;
+                if (c.followup_date < todayStr) overdueCount++;
+                else if (c.followup_date === todayStr) dueTodayCount++;
+            }
+        } else if (c.status === 'Follow-up Required') {
+            pendingFollowups++;
+        }
+    });
+
+    const elTotal = document.getElementById('kpi-total-calls');
+    if (elTotal) elTotal.textContent = totalCalls.toLocaleString('en-IN');
+
+    const elSub = document.getElementById('kpi-calls-sub');
+    if (elSub) elSub.textContent = `${fieldCalls} Field • ${hoCalls} Head Office`;
+
+    const elLeads = document.getElementById('kpi-new-leads');
+    if (elLeads) elLeads.textContent = newLeads.toLocaleString('en-IN');
+
+    const elFollowups = document.getElementById('kpi-pending-followups');
+    if (elFollowups) elFollowups.textContent = pendingFollowups.toLocaleString('en-IN');
+
+    const elFollowupsSub = document.getElementById('kpi-followups-sub');
+    if (elFollowupsSub) elFollowupsSub.textContent = `${overdueCount} Overdue • ${dueTodayCount} Due Today`;
+
+    const elConverted = document.getElementById('kpi-converted-calls');
+    if (elConverted) elConverted.textContent = convertedCount.toLocaleString('en-IN');
+
+    // 2. Render Target Progress & Directory Table
+    renderTargetsProgress();
+    renderCallsTable();
+    lucide.createIcons();
+}
+
+function renderTargetsProgress() {
+    const container = document.getElementById('reps-targets-progress-container');
+    const monthSelect = document.getElementById('calls-target-month-select');
+    if (!container || !monthSelect) return;
+
+    const activeMonth = monthSelect.value || new Date().toISOString().substring(0, 7);
+    container.innerHTML = '';
+
+    const reps = Object.keys(state.salesRepsList).filter(r => state.salesRepsList[r] === 'Active').sort();
+
+    if (reps.length === 0) {
+        container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 1rem;">No active representatives in registry.</div>`;
+        return;
+    }
+
+    reps.forEach(rep => {
+        // Find assigned target for this month
+        const target = state.targets.find(t => t.rep_name === rep && t.month === activeMonth) || {
+            target_calls: 20,
+            target_leads: 5,
+            target_revenue: 100000
+        };
+
+        // Calculate actual calls logged by this rep in this month
+        const repMonthCalls = state.calls.filter(c => {
+            const cRep = resolveRegisteredRepName(c.sender);
+            return cRep === rep && c.date && c.date.startsWith(activeMonth);
+        });
+
+        const actualCalls = repMonthCalls.length;
+        const actualLeads = repMonthCalls.filter(c => c.call_type === 'New Distributor Pitch' || (c.status && c.status.toLowerCase().includes('lead'))).length;
+        const actualConverted = repMonthCalls.filter(c => c.status === 'Order Won / Converted' || (c.status && c.status.toLowerCase().includes('converted'))).length;
+
+        const callsTarget = target.target_calls || 20;
+        const callsPct = Math.min(100, Math.round((actualCalls / callsTarget) * 100));
+
+        let barColor = 'var(--accent-indigo)';
+        if (callsPct >= 100) barColor = 'var(--accent-emerald)';
+        else if (callsPct >= 70) barColor = 'var(--accent-cyan)';
+        else if (callsPct < 40) barColor = 'var(--accent-rose)';
+
+        const card = document.createElement('div');
+        card.style.background = 'rgba(15, 23, 42, 0.45)';
+        card.style.border = '1px solid var(--border-color)';
+        card.style.borderRadius = 'var(--radius-md)';
+        card.style.padding = '1rem';
+        card.style.display = 'flex';
+        card.style.flexDirection = 'column';
+        card.style.gap = '0.65rem';
+
+        card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 600; color: var(--text-primary); font-size: 0.9rem;">${rep}</span>
+                <span class="badge" style="background: ${barColor}20; color: ${barColor}; border: 1px solid ${barColor}40; font-size: 0.725rem; padding: 2px 8px; border-radius: 12px; font-weight: 700;">
+                    ${callsPct}% Achieved
+                </span>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div style="background: rgba(255, 255, 255, 0.05); height: 8px; border-radius: 9999px; overflow: hidden;">
+                <div style="background: ${barColor}; width: ${callsPct}%; height: 100%; border-radius: 9999px; transition: width 0.3s ease;"></div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; font-size: 0.775rem; color: var(--text-muted); margin-top: 0.1rem;">
+                <div>Calls: <strong style="color: var(--text-primary);">${actualCalls}</strong> / ${callsTarget}</div>
+                <div>Leads: <strong style="color: var(--accent-cyan);">${actualLeads}</strong> (Won: ${actualConverted})</div>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+function renderCallsTable() {
+    const tbody = document.querySelector('#calls-directory-table tbody');
+    const badge = document.getElementById('calls-count-badge');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // Filter calls
+    const filtered = state.calls.filter(c => {
+        // Search Filter
+        if (state.callFilters.search) {
+            const s = state.callFilters.search;
+            const match = (c.distributor && c.distributor.toLowerCase().includes(s)) ||
+                          (c.contact_person && c.contact_person.toLowerCase().includes(s)) ||
+                          (c.phone && c.phone.toLowerCase().includes(s)) ||
+                          (c.beat && c.beat.toLowerCase().includes(s)) ||
+                          (c.notes && c.notes.toLowerCase().includes(s)) ||
+                          (c.admin_remarks && c.admin_remarks.toLowerCase().includes(s));
+            if (!match) return false;
+        }
+
+        // Rep Filter
+        if (state.callFilters.rep !== 'all') {
+            if (state.callFilters.rep === 'Head Office') {
+                if (c.sender !== 'Head Office') return false;
+            } else {
+                if (resolveRegisteredRepName(c.sender) !== state.callFilters.rep) return false;
+            }
+        }
+
+        // Call Type Filter
+        if (state.callFilters.type !== 'all') {
+            if (c.call_type !== state.callFilters.type) return false;
+        }
+
+        // Status Filter
+        if (state.callFilters.status !== 'all') {
+            if (c.status !== state.callFilters.status) return false;
+        }
+
+        return true;
+    });
+
+    if (badge) badge.textContent = `${filtered.length} Call${filtered.length === 1 ? '' : 's'}`;
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 2rem;">No distributor calls match your selected filters. Click <strong>+ Log / Assign Call</strong> to record a new visit!</td></tr>`;
+        return;
+    }
+
+    filtered.forEach(call => {
+        const tr = document.createElement('tr');
+
+        // Date & Time formatting
+        const dateParts = (call.date || '').split('-');
+        const formattedDate = dateParts.length === 3 ? `${dateParts[2]}/${dateParts[1]}` : (call.date || '-');
+        const formattedTime = call.time ? call.time.substring(0, 5) : '';
+
+        // Caller Badge
+        const isHO = call.sender === 'Head Office';
+        const callerBadge = isHO
+            ? `<span class="badge" style="background: rgba(139, 92, 246, 0.15); color: var(--accent-violet); border: 1px solid rgba(139, 92, 246, 0.3); padding: 3px 8px; border-radius: 8px; font-weight: 600; font-size: 0.75rem;"><i data-lucide="building" style="width: 12px; height: 12px; vertical-align: middle; margin-right: 2px;"></i> Head Office</span>`
+            : `<span style="font-weight: 500; color: var(--text-primary); font-size: 0.85rem;">${call.sender || 'Sales Rep'}</span>`;
+
+        // Contact Links (Phone & WhatsApp)
+        const cleanPhone = (call.phone || '').replace(/[^\d]/g, '');
+        let contactHtml = `<div style="font-weight: 500; color: var(--text-primary);">${call.contact_person || '-'}</div>`;
+        if (cleanPhone) {
+            const waNumber = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+            contactHtml += `
+                <div style="display: flex; align-items: center; gap: 0.4rem; margin-top: 0.2rem;">
+                    <a href="tel:${cleanPhone}" style="color: var(--accent-cyan); text-decoration: none; font-size: 0.775rem; display: inline-flex; align-items: center; gap: 2px;">
+                        <i data-lucide="phone" style="width: 11px; height: 11px;"></i> ${call.phone}
+                    </a>
+                    <a href="https://wa.me/${waNumber}" target="_blank" style="color: #25d366; text-decoration: none;" title="Open WhatsApp Chat">
+                        <i data-lucide="message-circle" style="width: 12px; height: 12px;"></i>
+                    </a>
+                </div>
+            `;
+        }
+
+        // Status badge styling
+        let statusColor = 'var(--accent-indigo)';
+        if (call.status === 'Order Won / Converted') statusColor = 'var(--accent-emerald)';
+        else if (call.status === 'Follow-up Required') statusColor = 'var(--accent-amber)';
+        else if (call.status === 'Samples Given') statusColor = 'var(--accent-cyan)';
+        else if (call.status === 'Not Interested / Price Issue') statusColor = 'var(--accent-rose)';
+
+        const statusBadge = `<span class="badge" style="background: ${statusColor}18; color: ${statusColor}; border: 1px solid ${statusColor}40; padding: 2px 8px; border-radius: 12px; font-size: 0.725rem; white-space: nowrap;">${call.status || 'Lead'}</span>`;
+
+        // Follow-up column
+        let followupHtml = `<span style="color: var(--text-muted);">-</span>`;
+        if (call.followup_date) {
+            const fDateParts = call.followup_date.split('-');
+            const fDateFormatted = fDateParts.length === 3 ? `${fDateParts[2]}/${fDateParts[1]}` : call.followup_date;
+            const fTime = call.followup_time ? ` ${call.followup_time}` : '';
+            const isCompleted = call.status === 'Order Won / Converted' || call.status === 'Not Interested / Price Issue';
+
+            if (isCompleted) {
+                followupHtml = `<span style="color: var(--text-muted); font-size: 0.75rem;">Done &bull; ${fDateFormatted}</span>`;
+            } else if (call.followup_date < todayStr) {
+                followupHtml = `<span class="badge" style="background: rgba(244, 63, 94, 0.15); color: var(--accent-rose); border: 1px solid rgba(244, 63, 94, 0.3); padding: 2px 6px; border-radius: 6px; font-size: 0.725rem; font-weight: 600;"><i data-lucide="alert-circle" style="width: 11px; height: 11px; vertical-align: middle;"></i> Overdue (${fDateFormatted})</span>`;
+            } else if (call.followup_date === todayStr) {
+                followupHtml = `<span class="badge" style="background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.3); padding: 2px 6px; border-radius: 6px; font-size: 0.725rem; font-weight: 600;"><i data-lucide="clock" style="width: 11px; height: 11px; vertical-align: middle;"></i> Today${fTime}</span>`;
+            } else {
+                followupHtml = `<span style="color: var(--accent-cyan); font-size: 0.775rem; font-weight: 500;">${fDateFormatted}${fTime}</span>`;
+            }
+        }
+
+        // Attachment column
+        let attachmentHtml = `<span style="color: var(--text-muted);">-</span>`;
+        if (call.attachment_data) {
+            const isPdf = call.attachment_type === 'application/pdf' || (call.attachment_name && call.attachment_name.toLowerCase().endsWith('.pdf'));
+            attachmentHtml = `
+                <button class="btn btn-secondary btn-sm" onclick="openAttachmentModal(${call.id})" style="padding: 2px 7px; font-size: 0.725rem; display: inline-flex; align-items: center; gap: 4px;">
+                    <i data-lucide="${isPdf ? 'file-text' : 'image'}" style="width: 12px; height: 12px; color: ${isPdf ? 'var(--accent-rose)' : 'var(--accent-cyan)'};"></i>
+                    <span>${isPdf ? 'PDF' : 'Card Photo'}</span>
+                </button>
+            `;
+        }
+
+        // Remarks & Notes snippet
+        let remarksSnippet = `<div style="max-width: 220px; font-size: 0.8rem; color: var(--text-secondary); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${(call.notes || '').replace(/"/g, '&quot;')}">${call.notes || '-'}</div>`;
+        if (call.admin_remarks) {
+            const remarksArr = call.admin_remarks.split('\n').filter(r => r.trim());
+            if (remarksArr.length > 0) {
+                const latest = remarksArr[remarksArr.length - 1];
+                remarksSnippet += `<div style="max-width: 220px; font-size: 0.725rem; color: var(--accent-violet); margin-top: 0.2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${latest.replace(/"/g, '&quot;')}"><strong>HO:</strong> ${latest}</div>`;
+            }
+        }
+
+        tr.innerHTML = `
+            <td style="font-size: 0.8rem; white-space: nowrap;">
+                <div style="font-weight: 600; color: var(--text-primary);">${formattedDate}</div>
+                <div style="color: var(--text-muted); font-size: 0.725rem;">${formattedTime}</div>
+            </td>
+            <td>${callerBadge}</td>
+            <td>
+                <div style="font-weight: 600; color: var(--text-primary); font-size: 0.875rem;">${call.distributor}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">${call.beat || '-'}</div>
+            </td>
+            <td>${contactHtml}</td>
+            <td style="font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap;">${call.call_type || 'Visit'}</td>
+            <td>${statusBadge}</td>
+            <td>${followupHtml}</td>
+            <td>${attachmentHtml}</td>
+            <td>${remarksSnippet}</td>
+            <td style="text-align: right; white-space: nowrap;">
+                <button class="btn btn-primary btn-sm" onclick="openFollowupModal(${call.id})" style="padding: 2px 8px; font-size: 0.75rem;" title="Update remarks & follow-up">
+                    <i data-lucide="message-square" style="width: 12px; height: 12px; vertical-align: middle;"></i> Follow-up
+                </button>
+                <button class="btn btn-secondary btn-sm" onclick="openAssignModal(${call.id})" style="padding: 2px 6px; font-size: 0.75rem;" title="Edit details">
+                    <i data-lucide="edit-2" style="width: 12px; height: 12px;"></i>
+                </button>
+                <button class="btn btn-danger btn-sm" onclick="deleteCall(${call.id})" style="padding: 2px 6px; font-size: 0.75rem;" title="Delete call">
+                    <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    lucide.createIcons();
+}
+
+// ==========================================
+// CALLS MODALS & CRM HANDLERS
+// ==========================================
+
+window.openAssignModal = function(editId = null) {
+    populateFilterDropdowns();
+    const modal = document.getElementById('modal-assign-call');
+    const title = document.getElementById('assign-modal-title');
+    const form = document.getElementById('form-assign-call');
+    form.reset();
+
+    document.getElementById('assign-call-id').value = editId || '';
+
+    if (editId) {
+        const call = state.calls.find(c => c.id === editId);
+        if (call) {
+            title.textContent = 'Edit Distributor Call Details';
+            document.getElementById('assign-call-rep').value = call.sender || 'Head Office';
+            document.getElementById('assign-call-type').value = call.call_type || 'New Distributor Pitch';
+            document.getElementById('assign-call-date').value = call.date || '';
+            document.getElementById('assign-call-time').value = call.time || '11:00';
+            document.getElementById('assign-call-distributor').value = call.distributor || '';
+            document.getElementById('assign-call-beat').value = call.beat || '';
+            document.getElementById('assign-call-contact').value = call.contact_person || '';
+            document.getElementById('assign-call-phone').value = call.phone || '';
+            document.getElementById('assign-call-status').value = call.status || 'Lead / Initial Discussion';
+            document.getElementById('assign-call-value').value = call.target_value || '';
+            document.getElementById('assign-call-notes').value = call.notes || '';
+
+            const hasFollowup = !!call.followup_date;
+            document.getElementById('assign-call-followup-check').checked = hasFollowup;
+            const container = document.getElementById('assign-followup-inputs');
+            if (hasFollowup) {
+                container.classList.remove('hidden');
+                document.getElementById('assign-call-followup-date').value = call.followup_date;
+                document.getElementById('assign-call-followup-time').value = call.followup_time || '11:00';
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+    } else {
+        title.textContent = 'Log / Assign Distributor Call';
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        document.getElementById('assign-call-date').value = `${y}-${m}-${day}`;
+        document.getElementById('assign-call-time').value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        document.getElementById('assign-call-followup-check').checked = false;
+        document.getElementById('assign-followup-inputs').classList.add('hidden');
+    }
+
+    modal.classList.add('active');
+    lucide.createIcons();
+};
+
+window.closeAssignModal = function() {
+    const modal = document.getElementById('modal-assign-call');
+    if (modal) modal.classList.remove('active');
+};
+
+function saveAssignedCall() {
+    const editIdStr = document.getElementById('assign-call-id').value;
+    const editId = editIdStr ? parseInt(editIdStr) : null;
+
+    const rep = document.getElementById('assign-call-rep').value;
+    const type = document.getElementById('assign-call-type').value;
+    const date = document.getElementById('assign-call-date').value;
+    const time = document.getElementById('assign-call-time').value;
+    const distributor = document.getElementById('assign-call-distributor').value.trim();
+    const beat = document.getElementById('assign-call-beat').value.trim();
+    const contact = document.getElementById('assign-call-contact').value.trim();
+    const phone = document.getElementById('assign-call-phone').value.trim();
+    const status = document.getElementById('assign-call-status').value;
+    const targetValue = parseFloat(document.getElementById('assign-call-value').value) || 0;
+    const notes = document.getElementById('assign-call-notes').value.trim();
+
+    if (!distributor || !date || !notes) {
+        alert('Please fill in required fields: Distributor Name, Visit Date, and Meeting Notes.');
+        return;
+    }
+
+    const followupChecked = document.getElementById('assign-call-followup-check').checked;
+    const followupDate = followupChecked ? document.getElementById('assign-call-followup-date').value : '';
+    const followupTime = followupChecked ? document.getElementById('assign-call-followup-time').value : '';
+
+    const fileInput = document.getElementById('assign-call-file');
+    const existingCall = editId ? state.calls.find(c => c.id === editId) : null;
+
+    const callPayload = {
+        sender: rep,
+        call_type: type,
+        date: date,
+        time: time,
+        distributor: distributor,
+        beat: beat,
+        contact_person: contact,
+        phone: phone,
+        status: status,
+        target_value: targetValue,
+        notes: notes,
+        followup_date: followupDate,
+        followup_time: followupTime,
+        attachment_data: existingCall ? existingCall.attachment_data : null,
+        attachment_name: existingCall ? existingCall.attachment_name : '',
+        attachment_type: existingCall ? existingCall.attachment_type : '',
+        admin_remarks: existingCall ? existingCall.admin_remarks : '',
+        created_at: existingCall ? existingCall.created_at : new Date().toISOString()
+    };
+
+    if (editId) callPayload.id = editId;
+
+    const finalizeSave = () => {
+        saveCallsToDb([callPayload]).then(() => {
+            syncCallToSupabase(callPayload);
+            closeAssignModal();
+            renderCallsHub();
+        });
+    };
+
+    if (fileInput && fileInput.files && fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        const isImage = file.type.startsWith('image/');
+        const reader = new FileReader();
+
+        if (isImage) {
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const maxDim = 1200;
+                    let w = img.width, h = img.height;
+                    if (w > maxDim || h > maxDim) {
+                        if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+                        else { w = Math.round((w * maxDim) / h); h = maxDim; }
+                    }
+                    canvas.width = w; canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, h);
+                    callPayload.attachment_data = canvas.toDataURL('image/jpeg', 0.75);
+                    callPayload.attachment_name = file.name;
+                    callPayload.attachment_type = 'image/jpeg';
+                    finalizeSave();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        } else {
+            reader.onload = (e) => {
+                callPayload.attachment_data = e.target.result;
+                callPayload.attachment_name = file.name;
+                callPayload.attachment_type = file.type || 'application/pdf';
+                finalizeSave();
+            };
+            reader.readAsDataURL(file);
+        }
+    } else {
+        finalizeSave();
+    }
+}
+
+window.openFollowupModal = function(callId) {
+    const call = state.calls.find(c => c.id === callId);
+    if (!call) return;
+
+    document.getElementById('followup-call-id').value = call.id;
+    document.getElementById('followup-info-distributor').textContent = call.distributor;
+    document.getElementById('followup-info-location').textContent = `${call.beat || '-'} • Date: ${call.date || '-'}`;
+    document.getElementById('followup-info-contact').textContent = call.contact_person || '-';
+    document.getElementById('followup-info-phone').textContent = call.phone || '-';
+    document.getElementById('followup-info-rep').textContent = call.sender || '-';
+    document.getElementById('followup-info-status').textContent = call.status || 'Lead';
+
+    const historyBox = document.getElementById('followup-history-container');
+    historyBox.innerHTML = '';
+
+    // Original discussion notes
+    const initDiv = document.createElement('div');
+    initDiv.style.borderBottom = '1px dashed var(--border-color)';
+    initDiv.style.paddingBottom = '0.5rem';
+    initDiv.innerHTML = `
+        <div style="color: var(--text-muted); font-size: 0.725rem;">[Initial Field Visit - ${call.sender}]:</div>
+        <div style="color: var(--text-primary); margin-top: 2px;">${call.notes || '-'}</div>
+    `;
+    historyBox.appendChild(initDiv);
+
+    // Past admin remarks
+    if (call.admin_remarks) {
+        const lines = call.admin_remarks.split('\n').filter(l => l.trim());
+        lines.forEach(line => {
+            const rDiv = document.createElement('div');
+            rDiv.style.background = 'rgba(99, 102, 241, 0.08)';
+            rDiv.style.borderLeft = '3px solid var(--accent-indigo)';
+            rDiv.style.padding = '0.4rem 0.6rem';
+            rDiv.style.borderRadius = '4px';
+            rDiv.style.color = 'var(--text-primary)';
+            rDiv.textContent = line;
+            historyBox.appendChild(rDiv);
+        });
+    }
+
+    document.getElementById('followup-new-remark').value = '';
+    document.getElementById('followup-update-status').value = call.status || 'Follow-up Required';
+    document.getElementById('followup-update-value').value = call.target_value || '';
+    document.getElementById('followup-update-date').value = call.followup_date || '';
+    document.getElementById('followup-update-time').value = call.followup_time || '11:00';
+
+    const modal = document.getElementById('modal-followup-call');
+    modal.classList.add('active');
+    lucide.createIcons();
+};
+
+window.closeFollowupModal = function() {
+    const modal = document.getElementById('modal-followup-call');
+    if (modal) modal.classList.remove('active');
+};
+
+function saveFollowupUpdate() {
+    const callId = parseInt(document.getElementById('followup-call-id').value);
+    const call = state.calls.find(c => c.id === callId);
+    if (!call) return;
+
+    const newRemark = document.getElementById('followup-new-remark').value.trim();
+    const newStatus = document.getElementById('followup-update-status').value;
+    const newValue = parseFloat(document.getElementById('followup-update-value').value) || 0;
+    const newDate = document.getElementById('followup-update-date').value;
+    const newTime = document.getElementById('followup-update-time').value;
+
+    let updatedRemarks = call.admin_remarks || '';
+    if (newRemark) {
+        const now = new Date();
+        const dStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        const entry = `[${dStr} Head Office]: ${newRemark}`;
+        updatedRemarks = updatedRemarks ? `${updatedRemarks}\n${entry}` : entry;
+    }
+
+    const updates = {
+        status: newStatus,
+        target_value: newValue,
+        followup_date: newDate,
+        followup_time: newTime,
+        admin_remarks: updatedRemarks,
+        updated_at: new Date().toISOString()
+    };
+
+    updateCallInDb(callId, updates).then(() => {
+        const fullCall = Object.assign({}, call, updates);
+        syncCallToSupabase(fullCall);
+        closeFollowupModal();
+        renderCallsHub();
+    });
+}
+
+window.openSetTargetsModal = function() {
+    populateFilterDropdowns();
+    const modal = document.getElementById('modal-set-targets');
+    const monthInput = document.getElementById('target-month-input');
+    const curMonth = document.getElementById('calls-target-month-select').value || new Date().toISOString().substring(0, 7);
+    monthInput.value = curMonth;
+
+    const repSelect = document.getElementById('target-rep-select');
+    const rep = repSelect.value;
+    const existing = state.targets.find(t => t.rep_name === rep && t.month === curMonth);
+
+    document.getElementById('target-calls-input').value = existing ? existing.target_calls : 20;
+    document.getElementById('target-leads-input').value = existing ? existing.target_leads : 5;
+    document.getElementById('target-revenue-input').value = existing ? existing.target_revenue : 100000;
+
+    repSelect.onchange = () => {
+        const r = repSelect.value;
+        const m = monthInput.value;
+        const ex = state.targets.find(t => t.rep_name === r && t.month === m);
+        document.getElementById('target-calls-input').value = ex ? ex.target_calls : 20;
+        document.getElementById('target-leads-input').value = ex ? ex.target_leads : 5;
+        document.getElementById('target-revenue-input').value = ex ? ex.target_revenue : 100000;
+    };
+
+    modal.classList.add('active');
+    lucide.createIcons();
+};
+
+window.closeSetTargetsModal = function() {
+    const modal = document.getElementById('modal-set-targets');
+    if (modal) modal.classList.remove('active');
+};
+
+function saveTarget() {
+    const rep = document.getElementById('target-rep-select').value;
+    const month = document.getElementById('target-month-input').value;
+    const calls = parseInt(document.getElementById('target-calls-input').value) || 20;
+    const leads = parseInt(document.getElementById('target-leads-input').value) || 5;
+    const rev = parseFloat(document.getElementById('target-revenue-input').value) || 0;
+
+    if (!rep || !month) {
+        alert('Please select representative and month.');
+        return;
+    }
+
+    const payload = {
+        rep_name: rep,
+        month: month,
+        target_calls: calls,
+        target_leads: leads,
+        target_revenue: rev,
+        updated_at: new Date().toISOString()
+    };
+
+    saveTargetToDb(payload).then(() => {
+        syncTargetToSupabase(payload);
+        closeSetTargetsModal();
+        renderTargetsProgress();
+    });
+}
+
+window.openAttachmentModal = function(callId) {
+    const call = state.calls.find(c => c.id === callId);
+    if (!call || !call.attachment_data) return;
+
+    const modal = document.getElementById('modal-view-attachment');
+    const title = document.getElementById('attachment-modal-title');
+    const img = document.getElementById('attachment-modal-img');
+    const pdfBox = document.getElementById('attachment-modal-pdf');
+    const pdfName = document.getElementById('attachment-modal-pdf-name');
+    const pdfLink = document.getElementById('attachment-modal-pdf-link');
+
+    title.textContent = `Visiting Card: ${call.distributor} (${call.attachment_name || 'Document'})`;
+
+    const isPdf = call.attachment_type === 'application/pdf' || (call.attachment_name && call.attachment_name.toLowerCase().endsWith('.pdf'));
+
+    if (isPdf) {
+        img.style.display = 'none';
+        pdfBox.style.display = 'flex';
+        pdfName.textContent = call.attachment_name || 'Document.pdf';
+        pdfLink.href = call.attachment_data;
+        pdfLink.download = call.attachment_name || 'Document.pdf';
+    } else {
+        pdfBox.style.display = 'none';
+        img.style.display = 'block';
+        img.src = call.attachment_data;
+    }
+
+    modal.classList.add('active');
+    lucide.createIcons();
+};
+
+window.closeAttachmentModal = function() {
+    const modal = document.getElementById('modal-view-attachment');
+    if (modal) modal.classList.remove('active');
+};
+
+window.deleteCall = function(callId) {
+    if (!confirm('Are you sure you want to delete this distributor call record?')) return;
+    deleteCallFromDb(callId).then(() => {
+        renderCallsHub();
+    });
+};
+
+function syncCallToSupabase(call) {
+    const url = state.settings.cloud ? state.settings.cloud.supabaseUrl : '';
+    const key = state.settings.cloud ? state.settings.cloud.supabaseKey : '';
+    if (!url || !key) return;
+
+    const endpoint = `${url}/rest/v1/distributor_calls`;
+    fetch(endpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'apikey': key,
+            'Authorization': `Bearer ${key}`,
+            'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(call)
+    }).catch(err => console.error('Cloud call sync error:', err));
+}
+
+function syncTargetToSupabase(target) {
+    const url = state.settings.cloud ? state.settings.cloud.supabaseUrl : '';
+    const key = state.settings.cloud ? state.settings.cloud.supabaseKey : '';
+    if (!url || !key) return;
+
+    const endpoint = `${url}/rest/v1/sales_targets`;
+    fetch(endpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'apikey': key,
+            'Authorization': `Bearer ${key}`
+        },
+        body: JSON.stringify(target)
+    }).catch(err => console.error('Cloud target sync error:', err));
+}
+
+function syncCloudCalls() {
+    const url = state.settings.cloud ? state.settings.cloud.supabaseUrl : '';
+    const key = state.settings.cloud ? state.settings.cloud.supabaseKey : '';
+
+    if (!url || !key) {
+        alert('Please configure Supabase API URL and Key in Settings first!');
+        return;
+    }
+
+    const btn = document.getElementById('btn-sync-calls-cloud');
+    const icon = document.getElementById('icon-calls-sync');
+    if (btn) btn.disabled = true;
+    if (icon) icon.classList.add('spinner');
+
+    const endpoint = `${url}/rest/v1/distributor_calls?select=*`;
+
+    fetch(endpoint, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'apikey': key,
+            'Authorization': `Bearer ${key}`
+        }
+    })
+    .then(resp => {
+        if (!resp.ok) {
+            return resp.text().then(t => { throw new Error(t || 'Failed to fetch cloud calls'); });
+        }
+        return resp.json();
+    })
+    .then(calls => {
+        if (!calls || calls.length === 0) {
+            alert('No new distributor calls found in the cloud.');
+            resetSyncCallsBtn();
+            return;
+        }
+
+        let newCount = 0;
+        const toSave = [];
+
+        calls.forEach(c => {
+            const isDup = state.calls.some(existing =>
+                existing.date === c.date &&
+                existing.time === c.time &&
+                existing.distributor === c.distributor &&
+                existing.sender === c.sender
+            );
+
+            if (!isDup) {
+                newCount++;
+                toSave.push(c);
+            }
+        });
+
+        if (toSave.length > 0) {
+            saveCallsToDb(toSave).then(() => {
+                alert(`Sync Complete! Fetched ${calls.length} calls from cloud, imported ${newCount} new calls.`);
+                renderCallsHub();
+                resetSyncCallsBtn();
+            });
+        } else {
+            alert(`Fetched ${calls.length} calls from cloud. All were already imported (0 new duplicates).`);
+            resetSyncCallsBtn();
+        }
+    })
+    .catch(err => {
+        alert('Cloud calls sync failed: ' + err.message);
+        resetSyncCallsBtn();
+    });
+
+    function resetSyncCallsBtn() {
+        if (btn) btn.disabled = false;
+        if (icon) icon.classList.remove('spinner');
+        lucide.createIcons();
+    }
+}
+

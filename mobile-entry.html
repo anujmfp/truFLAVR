@@ -276,6 +276,133 @@
             to { transform: translateY(0); opacity: 1; }
         }
 
+        /* Tab Segmented Control */
+        .portal-tabs {
+            display: flex;
+            background: rgba(31, 41, 55, 0.7);
+            padding: 4px;
+            border-radius: 12px;
+            border: 1px solid var(--input-border);
+            gap: 6px;
+            margin-top: 0.25rem;
+        }
+
+        .portal-tab-btn {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 0.6rem;
+            border-radius: 8px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .portal-tab-btn.active {
+            background: var(--accent-indigo);
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+        }
+
+        .portal-tab-btn i {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Attachment Upload Zone */
+        .attachment-zone {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .attachment-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+
+        .btn-upload-action {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            background: rgba(31, 41, 55, 0.8);
+            border: 1px dashed rgba(255, 255, 255, 0.15);
+            color: var(--text-primary);
+            padding: 0.75rem 0.5rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-upload-action:active {
+            background: rgba(99, 102, 241, 0.15);
+            border-color: var(--accent-indigo);
+        }
+
+        .attachment-preview-card {
+            background: rgba(31, 41, 55, 0.5);
+            border: 1px solid var(--input-border);
+            border-radius: 8px;
+            padding: 0.6rem 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+        }
+
+        .attachment-thumb {
+            width: 52px;
+            height: 52px;
+            border-radius: 6px;
+            object-fit: cover;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: #1f2937;
+        }
+
+        .attachment-info {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+
+        .attachment-name {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .attachment-meta {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .btn-remove-attachment {
+            background: rgba(244, 63, 94, 0.15);
+            border: 1px solid rgba(244, 63, 94, 0.3);
+            color: var(--accent-rose);
+            padding: 0.4rem;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
         /* Config Card Overlay for first-time use */
         .config-overlay {
             position: fixed;
@@ -320,9 +447,21 @@
                 <i data-lucide="sparkles" style="width: 12px; height: 12px;"></i>
                 TRU FLAVR SALES
             </div>
-            <h1>Daily Sales Report</h1>
-            <p class="subtitle">End of day report submission portal</p>
+            <h1 id="portal-main-heading">Daily Sales Report</h1>
+            <p class="subtitle" id="portal-sub-heading">End of day report submission portal</p>
         </header>
+
+        <!-- Portal Sub-Tab Switcher -->
+        <div class="portal-tabs">
+            <button type="button" class="portal-tab-btn active" id="tab-btn-dsr" onclick="switchPortalTab('dsr')">
+                <i data-lucide="bar-chart-2"></i>
+                <span>Daily Sales</span>
+            </button>
+            <button type="button" class="portal-tab-btn" id="tab-btn-calls" onclick="switchPortalTab('calls')">
+                <i data-lucide="phone-call"></i>
+                <span>Distributor Calls & Visits</span>
+            </button>
+        </div>
 
         <!-- Connection / Queue Status Bar -->
         <div id="pending-sync-banner" class="alert-banner alert-info hidden">
@@ -404,6 +543,149 @@
 
         </form>
 
+        <!-- Distributor Call & Visit Form -->
+        <form class="form-card hidden" id="call-form">
+            <!-- Call Date & Time -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="call-date"><i data-lucide="calendar"></i> Visit Date</label>
+                    <input type="date" id="call-date" class="input-ctrl" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="call-time"><i data-lucide="clock"></i> Time</label>
+                    <input type="time" id="call-time" class="input-ctrl" required>
+                </div>
+            </div>
+
+            <!-- Sales Rep Name -->
+            <div class="form-group">
+                <label for="call-rep"><i data-lucide="user"></i> Sales Representative</label>
+                <select id="call-rep" class="input-ctrl" required>
+                    <option value="" disabled selected>Loading representatives...</option>
+                </select>
+            </div>
+
+            <!-- Call / Visit Type -->
+            <div class="form-group">
+                <label for="call-type"><i data-lucide="tag"></i> Call / Visit Type</label>
+                <select id="call-type" class="input-ctrl" required>
+                    <option value="New Distributor Pitch" selected>New Distributor Pitch / Lead</option>
+                    <option value="Existing Distributor Visit">Existing Distributor Visit</option>
+                    <option value="Order Booking / Enquiry">Order Booking / Enquiry</option>
+                    <option value="Payment / Collection Follow-up">Payment / Collection Follow-up</option>
+                    <option value="Sampling / Product Demo">Sampling / Product Demo</option>
+                    <option value="Market Feedback / Survey">Market Feedback / Survey</option>
+                </select>
+            </div>
+
+            <!-- Distributor Name -->
+            <div class="form-group">
+                <label for="call-distributor"><i data-lucide="building-2"></i> Distributor / Outlet Name</label>
+                <input type="text" id="call-distributor" class="input-ctrl" placeholder="e.g. Mahadev Traders, Balaji Agency" required>
+            </div>
+
+            <!-- Contact Person & Phone -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="call-contact-person"><i data-lucide="user-check"></i> Contact Person</label>
+                    <input type="text" id="call-contact-person" class="input-ctrl" placeholder="e.g. Rajesh Bhai" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="call-phone"><i data-lucide="phone"></i> Phone Number</label>
+                    <input type="tel" id="call-phone" class="input-ctrl" placeholder="9876543210" required>
+                </div>
+            </div>
+
+            <!-- Beat / Area / City -->
+            <div class="form-group">
+                <label for="call-beat"><i data-lucide="map-pin"></i> Route / Area / City</label>
+                <input type="text" id="call-beat" class="input-ctrl" placeholder="e.g. Adajan Road, Surat" required>
+            </div>
+
+            <!-- Discussion Notes / Remarks -->
+            <div class="form-group">
+                <label for="call-notes"><i data-lucide="file-text"></i> Meeting Details / Pitch Notes</label>
+                <textarea id="call-notes" class="input-ctrl" rows="3" placeholder="Discussed product range, sample given, pricing discussion, competitor stock, owner feedback..." required style="resize: vertical; line-height: 1.4;"></textarea>
+            </div>
+
+            <!-- Outcome Status & Estimated Value -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="call-status"><i data-lucide="check-circle-2"></i> Outcome Status</label>
+                    <select id="call-status" class="input-ctrl">
+                        <option value="Lead / Initial Discussion" selected>Lead / Initial Discussion</option>
+                        <option value="Samples Given">Samples Given</option>
+                        <option value="Follow-up Required">Follow-up Required</option>
+                        <option value="Order Won / Converted">Order Won / Converted</option>
+                        <option value="Not Interested / Price Issue">Not Interested / Price Issue</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="call-value"><i data-lucide="indian-rupee"></i> Potential Order (₹)</label>
+                    <input type="number" id="call-value" class="input-ctrl" min="0" placeholder="Optional est. value">
+                </div>
+            </div>
+
+            <!-- Follow-up Schedule Checkbox & Fields -->
+            <div style="background: rgba(31, 41, 55, 0.4); border: 1px solid var(--input-border); border-radius: 8px; padding: 0.75rem;">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.85rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0;">
+                    <input type="checkbox" id="call-followup-check" style="width: 16px; height: 16px; accent-color: var(--accent-indigo);">
+                    <span><i data-lucide="calendar-plus" style="width: 14px; height: 14px; vertical-align: middle;"></i> Schedule Next Follow-up</span>
+                </label>
+                <div id="call-followup-container" class="hidden" style="margin-top: 0.75rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="call-followup-date" style="font-size: 0.75rem;">Follow-up Date</label>
+                        <input type="date" id="call-followup-date" class="input-ctrl">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="call-followup-time" style="font-size: 0.75rem;">Follow-up Time</label>
+                        <input type="time" id="call-followup-time" class="input-ctrl" value="11:00">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Visiting Card / Photo / PDF Upload -->
+            <div class="form-group">
+                <label><i data-lucide="camera"></i> Visiting Card / Photo / PDF</label>
+                <div class="attachment-zone">
+                    <input type="file" id="call-camera-input" accept="image/*" capture="environment" style="display: none;">
+                    <input type="file" id="call-file-input" accept="image/*,application/pdf" style="display: none;">
+                    
+                    <div class="attachment-buttons">
+                        <button type="button" class="btn-upload-action" onclick="document.getElementById('call-camera-input').click()">
+                            <i data-lucide="camera" style="width: 16px; height: 16px; color: var(--accent-cyan);"></i>
+                            <span>Take Photo</span>
+                        </button>
+                        <button type="button" class="btn-upload-action" onclick="document.getElementById('call-file-input').click()">
+                            <i data-lucide="upload" style="width: 16px; height: 16px; color: var(--accent-indigo);"></i>
+                            <span>Upload PDF / Card</span>
+                        </button>
+                    </div>
+
+                    <!-- Attachment Preview Card (Hidden until file selected) -->
+                    <div id="attachment-preview-box" class="attachment-preview-card hidden">
+                        <img id="attachment-thumb-img" class="attachment-thumb" src="" alt="Thumbnail">
+                        <div id="attachment-pdf-icon" class="attachment-thumb hidden" style="display: flex; align-items: center; justify-content: center; background: rgba(239, 68, 68, 0.15); color: var(--accent-rose); font-weight: 700; font-size: 0.75rem;">
+                            PDF
+                        </div>
+                        <div class="attachment-info">
+                            <span class="attachment-name" id="attachment-name-label">card.jpg</span>
+                            <span class="attachment-meta" id="attachment-meta-label">120 KB &bull; Attached</span>
+                        </div>
+                        <button type="button" class="btn-remove-attachment" onclick="removeCallAttachment()" title="Remove file">
+                            <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="btn-submit" id="btn-submit-call">
+                <i data-lucide="send" id="btn-call-icon"></i>
+                <span id="btn-call-text">Submit Distributor Call</span>
+            </button>
+        </form>
+
     </div>
 
     <!-- Configuration Missing Modal Overlay -->
@@ -461,14 +743,45 @@
                 url: '',
                 key: ''
             },
-            pendingQueue: []
+            currentTab: 'dsr',
+            pendingQueue: [],
+            pendingCallsQueue: [],
+            currentAttachment: null
         };
+
+        // Portal Tab Switching
+        function switchPortalTab(tab) {
+            state.currentTab = tab;
+            const btnDsr = document.getElementById('tab-btn-dsr');
+            const btnCalls = document.getElementById('tab-btn-calls');
+            const formDsr = document.getElementById('dsr-form');
+            const formCalls = document.getElementById('call-form');
+            const mainHeading = document.getElementById('portal-main-heading');
+            const subHeading = document.getElementById('portal-sub-heading');
+
+            if (tab === 'dsr') {
+                btnDsr.classList.add('active');
+                btnCalls.classList.remove('active');
+                formDsr.classList.remove('hidden');
+                formCalls.classList.add('hidden');
+                mainHeading.textContent = 'Daily Sales Report';
+                subHeading.textContent = 'End of day report submission portal';
+            } else {
+                btnCalls.classList.add('active');
+                btnDsr.classList.remove('active');
+                formCalls.classList.remove('hidden');
+                formDsr.classList.add('hidden');
+                mainHeading.textContent = 'Distributor Calls & Visits';
+                subHeading.textContent = 'Log field meetings, new distributor pitches & visiting cards';
+            }
+            lucide.createIcons();
+        }
 
         // Initialize Lucide Icons
         lucide.createIcons();
 
         // 1. Check Config from URL or LocalStorage
-         function checkConfiguration() {
+        function checkConfiguration() {
             const urlParams = new URLSearchParams(window.location.search);
             let queryUrl = urlParams.get('url') ? urlParams.get('url').trim() : null;
             const queryKey = urlParams.get('key') ? urlParams.get('key').trim() : null;
@@ -477,13 +790,11 @@
                 if (!queryUrl.startsWith('http://') && !queryUrl.startsWith('https://')) {
                     queryUrl = 'https://' + queryUrl;
                 }
-                // Save config to LocalStorage
                 localStorage.setItem('truflavr_supabase_url', queryUrl);
                 localStorage.setItem('truflavr_supabase_key', queryKey);
                 state.config.url = queryUrl;
                 state.config.key = queryKey;
                 
-                // Save rates if passed in query params
                 const qB = urlParams.get('b');
                 const qP = urlParams.get('p');
                 const qL = urlParams.get('l');
@@ -491,7 +802,6 @@
                 if (qP) localStorage.setItem('truflavr_rate_p', qP);
                 if (qL) localStorage.setItem('truflavr_rate_l', qL);
                 
-                // Clean URL query parameters
                 window.history.replaceState({}, document.title, window.location.pathname);
             } else {
                 let savedUrl = localStorage.getItem('truflavr_supabase_url') || '';
@@ -503,7 +813,6 @@
                 state.config.key = localStorage.getItem('truflavr_supabase_key') || '';
             }
 
-            // Update RATES from localStorage if available
             RATES.bottles = parseFloat(localStorage.getItem('truflavr_rate_b')) || 70.00;
             RATES.pouches = parseFloat(localStorage.getItem('truflavr_rate_p')) || 7.00;
             RATES.loose = parseFloat(localStorage.getItem('truflavr_rate_l')) || 400.00;
@@ -512,21 +821,37 @@
                 document.getElementById('config-missing-overlay').classList.remove('hidden');
                 document.getElementById('dsr-form').style.pointerEvents = 'none';
                 document.getElementById('dsr-form').style.opacity = '0.5';
+                document.getElementById('call-form').style.pointerEvents = 'none';
+                document.getElementById('call-form').style.opacity = '0.5';
                 return false;
             }
             return true;
         }
 
-        // 2. Setup Default Date (Today)
+        // 2. Setup Default Dates & Times
         function initDate() {
             const d = new Date();
             const y = d.getFullYear();
             const m = String(d.getMonth() + 1).padStart(2, '0');
             const day = String(d.getDate()).padStart(2, '0');
-            document.getElementById('dsr-date').value = `${y}-${m}-${day}`;
+            const todayStr = `${y}-${m}-${day}`;
+            
+            document.getElementById('dsr-date').value = todayStr;
+            document.getElementById('call-date').value = todayStr;
+
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            document.getElementById('call-time').value = `${hours}:${minutes}`;
+
+            // Default followup date to tomorrow
+            const tomorrow = new Date(d);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const tm = String(tomorrow.getMonth() + 1).padStart(2, '0');
+            const tday = String(tomorrow.getDate()).padStart(2, '0');
+            document.getElementById('call-followup-date').value = `${tomorrow.getFullYear()}-${tm}-${tday}`;
         }
 
-        // 3. Setup Heuristics Calculators
+        // 3. Setup Heuristics Calculators for DSR
         const btlInput = document.getElementById('qty-bottles');
         const pchInput = document.getElementById('qty-pouches');
         const lseInput = document.getElementById('qty-loose');
@@ -540,8 +865,6 @@
 
             const estimate = (b * RATES.bottles) + (p * RATES.pouches) + (l * RATES.loose);
             labelCalc.textContent = `₹${estimate.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            
-            // Auto-fill total value input if it hasn't been manually typed yet, or updates matches
             valInput.value = estimate.toFixed(2);
         }
 
@@ -550,30 +873,152 @@
             inp.addEventListener('change', calculateEstimate);
         });
 
-        // 4. Handle Offline storage queue
+        // 4. Follow-up Container Toggle
+        const followupCheck = document.getElementById('call-followup-check');
+        const followupContainer = document.getElementById('call-followup-container');
+        followupCheck.addEventListener('change', () => {
+            if (followupCheck.checked) {
+                followupContainer.classList.remove('hidden');
+            } else {
+                followupContainer.classList.add('hidden');
+            }
+        });
+
+        // 5. Attachment & Camera Handling
+        const cameraInput = document.getElementById('call-camera-input');
+        const fileInput = document.getElementById('call-file-input');
+        const previewBox = document.getElementById('attachment-preview-box');
+        const thumbImg = document.getElementById('attachment-thumb-img');
+        const pdfIcon = document.getElementById('attachment-pdf-icon');
+        const nameLabel = document.getElementById('attachment-name-label');
+        const metaLabel = document.getElementById('attachment-meta-label');
+
+        cameraInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) processAttachment(e.target.files[0]);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) processAttachment(e.target.files[0]);
+        });
+
+        function processAttachment(file) {
+            const isImage = file.type.startsWith('image/');
+            const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+            if (!isImage && !isPdf) {
+                showBanner('Please upload an image photo or a PDF document.', 'error');
+                return;
+            }
+
+            const fileSizeKB = Math.round(file.size / 1024);
+
+            if (isImage) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        // Compress & resize image client-side to keep under 250KB while retaining text sharpness
+                        const maxDim = 1200;
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (width > maxDim || height > maxDim) {
+                            if (width > height) {
+                                height = Math.round((height * maxDim) / width);
+                                width = maxDim;
+                            } else {
+                                width = Math.round((width * maxDim) / height);
+                                height = maxDim;
+                            }
+                        }
+
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.75);
+                        const approxKB = Math.round((compressedDataUrl.length * 3) / 4 / 1024);
+
+                        state.currentAttachment = {
+                            name: file.name || 'visiting_card.jpg',
+                            type: 'image/jpeg',
+                            size: `${approxKB} KB`,
+                            data: compressedDataUrl
+                        };
+
+                        thumbImg.src = compressedDataUrl;
+                        thumbImg.classList.remove('hidden');
+                        pdfIcon.classList.add('hidden');
+                        nameLabel.textContent = file.name || 'visiting_card.jpg';
+                        metaLabel.textContent = `${approxKB} KB &bull; Photo ready`;
+                        previewBox.classList.remove('hidden');
+                        lucide.createIcons();
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            } else if (isPdf) {
+                if (file.size > 5 * 1024 * 1024) {
+                    showBanner('PDF exceeds 5MB size limit. Please choose a smaller document.', 'error');
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    state.currentAttachment = {
+                        name: file.name,
+                        type: 'application/pdf',
+                        size: `${fileSizeKB} KB`,
+                        data: event.target.result
+                    };
+
+                    thumbImg.classList.add('hidden');
+                    pdfIcon.classList.remove('hidden');
+                    nameLabel.textContent = file.name;
+                    metaLabel.textContent = `${fileSizeKB} KB &bull; PDF Document`;
+                    previewBox.classList.remove('hidden');
+                    lucide.createIcons();
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function removeCallAttachment() {
+            state.currentAttachment = null;
+            cameraInput.value = '';
+            fileInput.value = '';
+            previewBox.classList.add('hidden');
+            thumbImg.src = '';
+        }
+
+        // 6. Handle Offline Storage Queues
         function loadPendingQueue() {
             state.pendingQueue = JSON.parse(localStorage.getItem('truflavr_pending_reports') || '[]');
+            state.pendingCallsQueue = JSON.parse(localStorage.getItem('truflavr_pending_calls') || '[]');
             updateQueueUI();
         }
 
         function savePendingQueue() {
             localStorage.setItem('truflavr_pending_reports', JSON.stringify(state.pendingQueue));
+            localStorage.setItem('truflavr_pending_calls', JSON.stringify(state.pendingCallsQueue));
             updateQueueUI();
         }
 
         function updateQueueUI() {
             const banner = document.getElementById('pending-sync-banner');
             const countLabel = document.getElementById('pending-count');
+            const total = state.pendingQueue.length + state.pendingCallsQueue.length;
             
-            if (state.pendingQueue.length > 0) {
+            if (total > 0) {
                 banner.classList.remove('hidden');
-                countLabel.textContent = state.pendingQueue.length;
+                countLabel.textContent = total;
             } else {
                 banner.classList.add('hidden');
             }
         }
 
-        // 5. Submit single record to Supabase
+        // 7. Supabase Submitters
         async function submitToSupabase(record) {
             const endpoint = `${state.config.url}/rest/v1/dsr_submissions`;
             const response = await fetch(endpoint, {
@@ -589,39 +1034,76 @@
 
             if (!response.ok) {
                 const text = await response.text();
-                throw new Error(text || 'Failed to submit to cloud database');
+                throw new Error(text || 'Failed to submit report to cloud');
             }
             return await response.json();
         }
 
-        // 6. Sync queue loop
+        async function submitCallToSupabase(record) {
+            const endpoint = `${state.config.url}/rest/v1/distributor_calls`;
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': state.config.key,
+                    'Authorization': `Bearer ${state.config.key}`,
+                    'Prefer': 'return=representation'
+                },
+                body: JSON.stringify(record)
+            });
+
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(text || 'Failed to submit call to cloud');
+            }
+            return await response.json();
+        }
+
+        // 8. Offline Queue Sync Loop
         async function syncOfflineQueue() {
-            if (state.pendingQueue.length === 0) return;
+            const total = state.pendingQueue.length + state.pendingCallsQueue.length;
+            if (total === 0) return;
             
-            showBanner('Syncing offline reports...', 'info');
+            showBanner('Syncing offline reports & calls...', 'info');
             
-            const remaining = [];
             let successCount = 0;
             let errorOccurred = false;
             let lastError = '';
 
+            // 1. Sync DSR reports
+            const remainingReports = [];
             for (const record of state.pendingQueue) {
                 try {
                     await submitToSupabase(record);
                     successCount++;
                 } catch (err) {
-                    console.error('Error syncing record:', err);
-                    remaining.push(record);
+                    console.error('Error syncing DSR report:', err);
+                    remainingReports.push(record);
                     errorOccurred = true;
                     lastError = err.message;
                 }
             }
+            state.pendingQueue = remainingReports;
 
-            state.pendingQueue = remaining;
+            // 2. Sync Distributor Calls
+            const remainingCalls = [];
+            for (const call of state.pendingCallsQueue) {
+                try {
+                    await submitCallToSupabase(call);
+                    successCount++;
+                } catch (err) {
+                    console.error('Error syncing distributor call:', err);
+                    remainingCalls.push(call);
+                    errorOccurred = true;
+                    lastError = err.message;
+                }
+            }
+            state.pendingCallsQueue = remainingCalls;
+
             savePendingQueue();
 
             if (successCount > 0) {
-                showBanner(`Successfully synced ${successCount} offline report(s)!`, 'success');
+                showBanner(`Successfully synced ${successCount} offline item(s)!`, 'success');
             }
             if (errorOccurred) {
                 showBanner(`Failed to sync: ${lastError || 'Check connection.'}`, 'error');
@@ -635,13 +1117,12 @@
             banner.classList.remove('hidden');
             lucide.createIcons();
             
-            // Auto hide success banners after 5 seconds
             if (type === 'success') {
                 setTimeout(() => banner.classList.add('hidden'), 5000);
             }
         }
 
-        function showSuccessModal(record, isOnline) {
+        function showSuccessModal(record, isOnline, type = 'dsr') {
             const overlay = document.getElementById('success-modal-overlay');
             const title = document.getElementById('success-modal-title');
             const status = document.getElementById('success-modal-status');
@@ -651,30 +1132,54 @@
             const btnShare = document.getElementById('btn-share-whatsapp');
             const btnClose = document.getElementById('btn-success-close');
 
-            const dateParts = record.date.split('-');
+            const dateParts = (record.date || '').split('-');
             const formattedDate = dateParts.length === 3 ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}` : record.date;
             
-            const estVal = (record.bottles * RATES.bottles) + 
-                           (record.pouches * RATES.pouches) + 
-                           (record.loose * RATES.loose);
+            let shareText = '';
 
-            const shareText = `*Daily Sales Report*\n` +
-                              `*Date:* ${formattedDate}\n` +
-                              `*Sales Rep:* ${record.sender}\n` +
-                              `*Beat/Route:* ${record.beat}\n` +
-                              `*Distributor:* ${record.distributor}\n\n` +
-                              `*Quantities Sold:*\n` +
-                              `- Bottles: ${record.bottles} Btl\n` +
-                              `- Pouches: ${record.pouches} Pch\n` +
-                              `- Loose: ${record.loose} Lse\n\n` +
-                              `*Calculated Value:* ₹${estVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` +
-                              `*Reported Invoice Value:* ₹${record.reportedValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n\n` +
-                              `_Submitted via Tru Flavr Portal_`;
+            if (type === 'call') {
+                shareText = `*Distributor Call / Lead Report*\n` +
+                            `*Date & Time:* ${formattedDate} ${record.time || ''}\n` +
+                            `*Sales Rep:* ${record.sender}\n` +
+                            `*Distributor / Firm:* ${record.distributor}\n` +
+                            `*Contact Person:* ${record.contact_person || 'N/A'}\n` +
+                            `*Phone:* ${record.phone || 'N/A'}\n` +
+                            `*Route / Location:* ${record.beat || 'N/A'}\n` +
+                            `*Call Type:* ${record.call_type}\n` +
+                            `*Status:* ${record.status}\n` +
+                            (record.target_value ? `*Est. Order Value:* ₹${record.target_value.toLocaleString('en-IN')}\n` : '') +
+                            (record.followup_date ? `*Next Follow-up:* ${record.followup_date} ${record.followup_time || ''}\n` : '') +
+                            (record.attachment_name ? `*Visiting Card / File:* Attached (${record.attachment_name})\n` : '') +
+                            `*Notes:*\n${record.notes}\n\n` +
+                            `_Submitted via Tru Flavr Portal_`;
+                
+                title.textContent = isOnline ? 'Call Logged Successfully!' : 'Call Saved Offline';
+                btnClose.textContent = 'Log Another Call';
+            } else {
+                const estVal = (record.bottles * RATES.bottles) + 
+                               (record.pouches * RATES.pouches) + 
+                               (record.loose * RATES.loose);
+
+                shareText = `*Daily Sales Report*\n` +
+                            `*Date:* ${formattedDate}\n` +
+                            `*Sales Rep:* ${record.sender}\n` +
+                            `*Beat/Route:* ${record.beat}\n` +
+                            `*Distributor:* ${record.distributor}\n\n` +
+                            `*Quantities Sold:*\n` +
+                            `- Bottles: ${record.bottles} Btl\n` +
+                            `- Pouches: ${record.pouches} Pch\n` +
+                            `- Loose: ${record.loose} Lse\n\n` +
+                            `*Calculated Value:* ₹${estVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` +
+                            `*Reported Invoice Value:* ₹${record.reportedValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n\n` +
+                            `_Submitted via Tru Flavr Portal_`;
+                
+                title.textContent = isOnline ? 'Report Submitted!' : 'Report Saved Offline';
+                btnClose.textContent = 'Submit Another Report';
+            }
 
             preview.textContent = shareText;
 
             if (isOnline) {
-                title.textContent = 'Report Submitted!';
                 status.textContent = 'Saved to database successfully.';
                 status.style.color = 'var(--accent-emerald)';
                 iconBg.style.background = 'rgba(16, 185, 129, 0.1)';
@@ -683,8 +1188,7 @@
                 icon.className = 'lucide-check-circle';
                 icon.setAttribute('data-lucide', 'check-circle');
             } else {
-                title.textContent = 'Report Saved Offline';
-                status.textContent = 'Saved to offline queue (will sync later).';
+                status.textContent = 'Saved to offline queue (will sync automatically).';
                 status.style.color = '#f59e0b';
                 iconBg.style.background = 'rgba(245, 158, 11, 0.1)';
                 iconBg.style.borderColor = 'rgba(245, 158, 11, 0.2)';
@@ -710,7 +1214,7 @@
             overlay.classList.remove('hidden');
         }
 
-        // Form Submit Handler
+        // Form Submit Handler: DSR Report
         document.getElementById('dsr-form').addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -736,8 +1240,8 @@
 
             try {
                 await submitToSupabase(record);
-                showBanner('Report submitted successfully to cloud!', 'success');
-                showSuccessModal(record, true);
+                showBanner('Daily report submitted successfully to cloud!', 'success');
+                showSuccessModal(record, true, 'dsr');
                 
                 btlInput.value = 0;
                 pchInput.value = 0;
@@ -750,7 +1254,7 @@
                 state.pendingQueue.push(record);
                 savePendingQueue();
                 showBanner(`Offline: Saved to queue. (Error: ${err.message})`, 'error');
-                showSuccessModal(record, false);
+                showSuccessModal(record, false, 'dsr');
                 
                 btlInput.value = 0;
                 pchInput.value = 0;
@@ -767,9 +1271,83 @@
             }
         });
 
+        // Form Submit Handler: Distributor Call / Visit
+        document.getElementById('call-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const btn = document.getElementById('btn-submit-call');
+            const btnIcon = document.getElementById('btn-call-icon');
+            const btnText = document.getElementById('btn-call-text');
+
+            btn.disabled = true;
+            btnText.textContent = 'Submitting Call...';
+            btnIcon.className = 'spinner';
+
+            const followupChecked = document.getElementById('call-followup-check').checked;
+
+            const callRecord = {
+                date: document.getElementById('call-date').value,
+                time: document.getElementById('call-time').value,
+                sender: document.getElementById('call-rep').value,
+                call_type: document.getElementById('call-type').value,
+                distributor: document.getElementById('call-distributor').value.trim(),
+                contact_person: document.getElementById('call-contact-person').value.trim(),
+                phone: document.getElementById('call-phone').value.trim(),
+                beat: document.getElementById('call-beat').value.trim(),
+                notes: document.getElementById('call-notes').value.trim(),
+                status: document.getElementById('call-status').value,
+                target_value: parseFloat(document.getElementById('call-value').value) || 0,
+                followup_date: followupChecked ? document.getElementById('call-followup-date').value : '',
+                followup_time: followupChecked ? document.getElementById('call-followup-time').value : '',
+                attachment_name: state.currentAttachment ? state.currentAttachment.name : '',
+                attachment_type: state.currentAttachment ? state.currentAttachment.type : '',
+                attachment_data: state.currentAttachment ? state.currentAttachment.data : null,
+                admin_remarks: '',
+                created_at: new Date().toISOString()
+            };
+
+            try {
+                await submitCallToSupabase(callRecord);
+                showBanner('Distributor call logged successfully to cloud!', 'success');
+                showSuccessModal(callRecord, true, 'call');
+                
+                // Reset form fields
+                document.getElementById('call-distributor').value = '';
+                document.getElementById('call-contact-person').value = '';
+                document.getElementById('call-phone').value = '';
+                document.getElementById('call-notes').value = '';
+                document.getElementById('call-value').value = '';
+                document.getElementById('call-followup-check').checked = false;
+                document.getElementById('call-followup-container').classList.add('hidden');
+                removeCallAttachment();
+            } catch (err) {
+                console.error('Online call submit failed, queuing offline:', err);
+                state.pendingCallsQueue.push(callRecord);
+                savePendingQueue();
+                showBanner(`Offline: Saved call to queue. (Error: ${err.message})`, 'error');
+                showSuccessModal(callRecord, false, 'call');
+                
+                document.getElementById('call-distributor').value = '';
+                document.getElementById('call-contact-person').value = '';
+                document.getElementById('call-phone').value = '';
+                document.getElementById('call-notes').value = '';
+                document.getElementById('call-value').value = '';
+                document.getElementById('call-followup-check').checked = false;
+                document.getElementById('call-followup-container').classList.add('hidden');
+                removeCallAttachment();
+            } finally {
+                btn.disabled = false;
+                btnText.textContent = 'Submit Distributor Call';
+                btnIcon.className = '';
+                btnIcon.setAttribute('data-lucide', 'send');
+                lucide.createIcons();
+            }
+        });
+
         async function loadSalesRepsDropdown() {
-            const select = document.getElementById('dsr-rep');
-            if (!select) return;
+            const dsrSelect = document.getElementById('dsr-rep');
+            const callSelect = document.getElementById('call-rep');
+            if (!dsrSelect && !callSelect) return;
 
             let reps = [];
             try {
@@ -817,12 +1395,17 @@
             }
 
             function populateDropdown(list) {
-                select.innerHTML = '<option value="" disabled selected>Select Your Name</option>';
-                list.forEach(name => {
-                    const opt = document.createElement('option');
-                    opt.value = name;
-                    opt.textContent = name;
-                    select.appendChild(opt);
+                [dsrSelect, callSelect].forEach(select => {
+                    if (!select) return;
+                    const prevVal = select.value;
+                    select.innerHTML = '<option value="" disabled selected>Select Your Name</option>';
+                    list.forEach(name => {
+                        const opt = document.createElement('option');
+                        opt.value = name;
+                        opt.textContent = name;
+                        if (name === prevVal) opt.selected = true;
+                        select.appendChild(opt);
+                    });
                 });
             }
         }
